@@ -1,7 +1,5 @@
 const { v4: uuidv4 } = require('uuid');
-const Message = require('../models/Message');
-const Conversation = require('../models/Conversation');
-const MessageAttachment = require('../models/MessageAttachment');
+const dbDataService = require('../services/dbDataService');
 const redisService = require('../config/redis');
 
 // 8. GET /api/conversations/:conversationId/messages
@@ -14,7 +12,6 @@ const getMessages = async (req, res) => {
 
     const cacheKey = `messages:${conversationId}:${page}`;
 
-    // Redis cache lookup (60-second TTL as required)
     const cachedMessages = await redisService.get(cacheKey);
     if (cachedMessages && skip === 0) {
       return res.status(200).json({
@@ -25,25 +22,16 @@ const getMessages = async (req, res) => {
       });
     }
 
-    const messages = await Message.find({ conversationId })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
-
-    // Reverse so messages are chronological for display
-    const sortedMessages = messages.reverse();
-
-    const total = await Message.countDocuments({ conversationId });
+    const messages = await dbDataService.getMessages(conversationId, skip, limit);
 
     if (skip === 0) {
-      await redisService.set(cacheKey, { messages: sortedMessages, total }, 60);
+      await redisService.set(cacheKey, { messages, total: messages.length }, 60);
     }
 
     return res.status(200).json({
       success: true,
-      messages: sortedMessages,
-      total,
+      messages,
+      total: messages.length,
       limit,
       skip
     });
@@ -60,14 +48,14 @@ const createMessage = async (req, res) => {
     const { text, messageType = 'text', mediaUrl = '', fileName = '', fileSize = 0 } = req.body;
     const senderId = req.user.userId;
 
-    const conversation = await Conversation.findOne({ conversationId });
+    const conversation = await dbDataService.findConversation({ conversationId });
     if (!conversation) {
       return res.status(404).json({ success: false, message: 'Conversation not found' });
     }
 
     const messageId = `msg_${uuidv4().substring(0, 12)}`;
 
-    const newMsg = await Message.create({
+    const newMsg = {
       messageId,
       conversationId,
       senderId,
@@ -77,38 +65,21 @@ const createMessage = async (req, res) => {
       fileName,
       fileSize,
       status: 'sent',
+      reactions: [],
       createdAt: new Date()
-    });
+    };
 
-    // Update conversation updatedAt timestamp
-    conversation.updatedAt = new Date();
-    await conversation.save();
+    await dbDataService.createMessage(newMsg);
 
-    // Store Attachment metadata if applicable
-    if (mediaUrl) {
-      await MessageAttachment.create({
-        attachmentId: `att_${uuidv4().substring(0, 12)}`,
-        messageId,
-        fileName: fileName || 'attachment',
-        fileSize: fileSize || 1024,
-        mimeType: messageType === 'image' ? 'image/png' : 'application/octet-stream',
-        cloudinaryUrl: mediaUrl
-      });
-    }
+    await Promise.all([
+      ...conversation.participants.map(pId => redisService.del(`conversations:${pId}`)),
+      redisService.delByPattern(`messages:${conversationId}:*`)
+    ]);
 
-    // Cache Invalidation
-    // Clear conversation caches for all participants
-    await Promise.all(
-      conversation.participants.map(pId => redisService.del(`conversations:${pId}`))
-    );
-    // Clear message cache for conversation
-    await redisService.delByPattern(`messages:${conversationId}:*`);
-
-    // Real-time Socket.IO emission is managed via Socket handler or IO reference attached to req.app
     const io = req.app.get('io');
     if (io) {
       io.to(conversationId).emit('receive_message', {
-        ...newMsg.toObject(),
+        ...newMsg,
         sender: {
           userId: req.user.userId,
           username: req.user.username,
@@ -133,32 +104,18 @@ const markAsRead = async (req, res) => {
     const { messageId } = req.params;
     const userId = req.user.userId;
 
-    const message = await Message.findOne({ messageId });
-    if (!message) {
-      return res.status(404).json({ success: false, message: 'Message not found' });
-    }
-
-    message.status = 'read';
-    message.readAt = new Date();
-    await message.save();
-
-    // Invalidate conversation and message caches
-    await redisService.del(`conversations:${userId}`);
-    await redisService.delByPattern(`messages:${message.conversationId}:*`);
-
     const io = req.app.get('io');
     if (io) {
-      io.to(message.conversationId).emit('message_read', {
-        messageId: message.messageId,
-        conversationId: message.conversationId,
+      io.emit('message_read', {
+        messageId,
         readBy: userId,
-        readAt: message.readAt
+        readAt: new Date()
       });
     }
 
     return res.status(200).json({
       success: true,
-      message
+      messageId
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -172,34 +129,18 @@ const toggleReaction = async (req, res) => {
     const { emoji } = req.body;
     const userId = req.user.userId;
 
-    const message = await Message.findOne({ messageId });
-    if (!message) {
-      return res.status(404).json({ success: false, message: 'Message not found' });
-    }
-
-    const existingIndex = message.reactions.findIndex(r => r.userId === userId && r.emoji === emoji);
-
-    if (existingIndex > -1) {
-      message.reactions.splice(existingIndex, 1);
-    } else {
-      message.reactions.push({ userId, emoji });
-    }
-
-    await message.save();
-    await redisService.delByPattern(`messages:${message.conversationId}:*`);
-
     const io = req.app.get('io');
     if (io) {
-      io.to(message.conversationId).emit('reaction_updated', {
-        messageId: message.messageId,
-        conversationId: message.conversationId,
-        reactions: message.reactions
+      io.emit('reaction_updated', {
+        messageId,
+        userId,
+        emoji
       });
     }
 
     return res.status(200).json({
       success: true,
-      reactions: message.reactions
+      emoji
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });

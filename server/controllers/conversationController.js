@@ -1,7 +1,5 @@
 const { v4: uuidv4 } = require('uuid');
-const Conversation = require('../models/Conversation');
-const Message = require('../models/Message');
-const User = require('../models/User');
+const dbDataService = require('../services/dbDataService');
 const redisService = require('../config/redis');
 
 // 6. GET /api/conversations
@@ -10,7 +8,6 @@ const getConversations = async (req, res) => {
     const userId = req.user.userId;
     const cacheKey = `conversations:${userId}`;
 
-    // Redis cache lookup (10-second TTL as required)
     const cachedConversations = await redisService.get(cacheKey);
     if (cachedConversations) {
       return res.status(200).json({
@@ -20,40 +17,26 @@ const getConversations = async (req, res) => {
       });
     }
 
-    const conversations = await Conversation.find({
-      participants: userId
-    }).sort({ updatedAt: -1 }).lean();
+    const conversations = await dbDataService.getConversations(userId);
 
-    // Enrich conversations with details
     const enrichedConversations = await Promise.all(
       conversations.map(async (conv) => {
-        // Fetch participant details
-        const participantDetails = await User.find({
-          userId: { $in: conv.participants }
-        }).select('userId username email profilePicture status lastSeen').lean();
+        const participantDetails = await Promise.all(
+          conv.participants.map(pId => dbDataService.findUser({ userId: pId }))
+        );
 
-        // Latest message
-        const lastMessage = await Message.findOne({ conversationId: conv.conversationId })
-          .sort({ createdAt: -1 })
-          .lean();
-
-        // Unread messages count
-        const unreadCount = await Message.countDocuments({
-          conversationId: conv.conversationId,
-          senderId: { $ne: userId },
-          status: { $ne: 'read' }
-        });
+        const lastMessage = await dbDataService.getLastMessage(conv.conversationId);
+        const unreadCount = await dbDataService.getUnreadCount(conv.conversationId, userId);
 
         return {
           ...conv,
-          participantDetails,
+          participantDetails: participantDetails.filter(Boolean).map(({ passwordHash, ...u }) => u),
           lastMessage: lastMessage || null,
           unreadCount
         };
       })
     );
 
-    // Save to Redis (10s TTL)
     await redisService.set(cacheKey, enrichedConversations, 10);
 
     return res.status(200).json({
@@ -72,7 +55,6 @@ const createConversation = async (req, res) => {
     const { participants, type = 'individual', groupName = '', groupAvatar = '' } = req.body;
     const currentUserId = req.user.userId;
 
-    // Ensure current user is in participants
     const allParticipants = Array.from(new Set([...(participants || []), currentUserId]));
 
     if (type === 'individual') {
@@ -80,26 +62,23 @@ const createConversation = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Individual conversations require exactly 2 participants' });
       }
 
-      // Check if conversation already exists between these 2 users
-      const existing = await Conversation.findOne({
+      const existing = await dbDataService.findConversation({
         type: 'individual',
-        participants: { $all: allParticipants, $size: 2 }
+        participants: { $all: allParticipants }
       });
 
       if (existing) {
-        const participantDetails = await User.find({
-          userId: { $in: existing.participants }
-        }).select('userId username email profilePicture status lastSeen').lean();
+        const participantDetails = await Promise.all(
+          existing.participants.map(pId => dbDataService.findUser({ userId: pId }))
+        );
 
-        const lastMessage = await Message.findOne({ conversationId: existing.conversationId })
-          .sort({ createdAt: -1 })
-          .lean();
+        const lastMessage = await dbDataService.getLastMessage(existing.conversationId);
 
         return res.status(200).json({
           success: true,
           conversation: {
-            ...existing.toObject(),
-            participantDetails,
+            ...existing,
+            participantDetails: participantDetails.filter(Boolean).map(({ passwordHash, ...u }) => u),
             lastMessage: lastMessage || null,
             unreadCount: 0
           }
@@ -109,29 +88,32 @@ const createConversation = async (req, res) => {
 
     const conversationId = `conv_${uuidv4().substring(0, 12)}`;
 
-    const newConv = await Conversation.create({
+    const newConv = {
       conversationId,
       type,
       participants: allParticipants,
       groupName: type === 'group' ? (groupName || 'New Group') : '',
       groupAdmin: type === 'group' ? currentUserId : null,
-      groupAvatar: type === 'group' ? (groupAvatar || 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&q=80&w=256') : ''
-    });
+      groupAvatar: type === 'group' ? (groupAvatar || 'https://images.unsplash.com/photo-1522071820081-009f0129c71c') : '',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
 
-    // Invalidate conversation cache for all participants
+    await dbDataService.createConversation(newConv);
+
     await Promise.all(
       allParticipants.map(pId => redisService.del(`conversations:${pId}`))
     );
 
-    const participantDetails = await User.find({
-      userId: { $in: allParticipants }
-    }).select('userId username email profilePicture status lastSeen').lean();
+    const participantDetails = await Promise.all(
+      allParticipants.map(pId => dbDataService.findUser({ userId: pId }))
+    );
 
     return res.status(201).json({
       success: true,
       conversation: {
-        ...newConv.toObject(),
-        participantDetails,
+        ...newConv,
+        participantDetails: participantDetails.filter(Boolean).map(({ passwordHash, ...u }) => u),
         lastMessage: null,
         unreadCount: 0
       }

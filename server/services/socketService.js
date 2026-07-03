@@ -1,9 +1,7 @@
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const { JWT_SECRET } = require('../middleware/authMiddleware');
-const User = require('../models/User');
-const Conversation = require('../models/Conversation');
-const Message = require('../models/Message');
+const dbDataService = require('../services/dbDataService');
 const redisService = require('../config/redis');
 
 const disconnectTimers = new Map();
@@ -37,8 +35,12 @@ function initSocketService(io) {
       disconnectTimers.delete(userId);
     }
 
-    // Update user status in DB
-    await User.findOneAndUpdate({ userId }, { status: 'online', lastSeen: new Date() });
+    // Update user status
+    const user = await dbDataService.findUser({ userId });
+    if (user) {
+      user.status = 'online';
+      user.lastSeen = new Date();
+    }
     await redisService.del(`user:status:${userId}`);
 
     // Broadcast online event
@@ -61,12 +63,12 @@ function initSocketService(io) {
       try {
         const { conversationId, text, messageType = 'text', mediaUrl = '', fileName = '', fileSize = 0 } = data;
 
-        const conversation = await Conversation.findOne({ conversationId });
+        const conversation = await dbDataService.findConversation({ conversationId });
         if (!conversation) return;
 
         const messageId = `msg_${uuidv4().substring(0, 12)}`;
 
-        const newMsg = await Message.create({
+        const newMsg = {
           messageId,
           conversationId,
           senderId: userId,
@@ -76,11 +78,11 @@ function initSocketService(io) {
           fileName,
           fileSize,
           status: 'delivered', // marked delivered on socket push
+          reactions: [],
           createdAt: new Date()
-        });
+        };
 
-        conversation.updatedAt = new Date();
-        await conversation.save();
+        await dbDataService.createMessage(newMsg);
 
         // Invalidate conversation and message caches
         await Promise.all([
@@ -88,11 +90,15 @@ function initSocketService(io) {
           redisService.delByPattern(`messages:${conversationId}:*`)
         ]);
 
-        const sender = await User.findOne({ userId }).select('userId username profilePicture').lean();
+        const sender = await dbDataService.findUser({ userId });
 
         const payload = {
-          ...newMsg.toObject(),
-          sender
+          ...newMsg,
+          sender: sender ? {
+            userId: sender.userId,
+            username: sender.username,
+            profilePicture: sender.profilePicture
+          } : { userId, username: 'User' }
         };
 
         // Emit receive_message to all participants in room
@@ -121,11 +127,6 @@ function initSocketService(io) {
     // 5. 'mark_read' event
     socket.on('mark_read', async ({ messageId, conversationId }) => {
       try {
-        await Message.findOneAndUpdate(
-          { messageId },
-          { status: 'read', readAt: new Date() }
-        );
-
         await redisService.delByPattern(`messages:${conversationId}:*`);
 
         io.to(conversationId).emit('message_read', {
@@ -142,21 +143,11 @@ function initSocketService(io) {
     // 6. 'message_reaction' event
     socket.on('message_reaction', async ({ messageId, conversationId, emoji }) => {
       try {
-        const msg = await Message.findOne({ messageId });
-        if (!msg) return;
-
-        const idx = msg.reactions.findIndex(r => r.userId === userId && r.emoji === emoji);
-        if (idx > -1) {
-          msg.reactions.splice(idx, 1);
-        } else {
-          msg.reactions.push({ userId, emoji });
-        }
-        await msg.save();
-
         io.to(conversationId).emit('reaction_updated', {
           messageId,
           conversationId,
-          reactions: msg.reactions
+          userId,
+          emoji
         });
       } catch (err) {
         console.error('Socket message_reaction error:', err);
@@ -171,7 +162,11 @@ function initSocketService(io) {
 
       // Debounce offline broadcast by 5 seconds to handle network fluctuations
       const timer = setTimeout(async () => {
-        await User.findOneAndUpdate({ userId }, { status: 'offline', lastSeen: new Date() });
+        const u = await dbDataService.findUser({ userId });
+        if (u) {
+          u.status = 'offline';
+          u.lastSeen = new Date();
+        }
         await redisService.del(`user:status:${userId}`);
 
         io.emit('user_offline', { userId, status: 'offline', lastSeen: new Date() });

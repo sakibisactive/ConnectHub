@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const dbDataService = require('../services/dbDataService');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'connecthub_jwt_secret_super_key_2026';
 
@@ -18,10 +19,14 @@ const protect = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = await User.findOne({ userId: decoded.userId }).select('-passwordHash');
-    if (!req.user) {
+    const foundUser = await dbDataService.findUser({ userId: decoded.userId });
+    
+    if (!foundUser) {
       return res.status(401).json({ success: false, message: 'User session invalid' });
     }
+
+    const { passwordHash, ...userClean } = foundUser;
+    req.user = userClean;
     next();
   } catch (error) {
     return res.status(401).json({ success: false, message: 'Not authorized, token invalid or expired' });

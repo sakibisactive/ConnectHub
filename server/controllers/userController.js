@@ -1,4 +1,4 @@
-const User = require('../models/User');
+const dbDataService = require('../services/dbDataService');
 const redisService = require('../config/redis');
 
 // 4. GET /api/users
@@ -7,19 +7,7 @@ const getUsers = async (req, res) => {
     const { search } = req.query;
     const currentUserId = req.user ? req.user.userId : null;
 
-    let query = {};
-    if (currentUserId) {
-      query.userId = { $ne: currentUserId };
-    }
-
-    if (search) {
-      query.username = { $regex: search, $options: 'i' };
-    }
-
-    const users = await User.find(query)
-      .select('-passwordHash')
-      .sort({ username: 1 })
-      .lean();
+    const users = await dbDataService.getUsers(search, currentUserId);
 
     return res.status(200).json({
       success: true,
@@ -36,7 +24,6 @@ const getUserStatus = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    // Check Redis cache first (15-second TTL pattern as per requirements)
     const cacheKey = `user:status:${userId}`;
     const cachedStatus = await redisService.get(cacheKey);
 
@@ -49,17 +36,16 @@ const getUserStatus = async (req, res) => {
       });
     }
 
-    const user = await User.findOne({ userId }).select('status lastSeen username profilePicture');
+    const user = await dbDataService.findUser({ userId });
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
     const statusData = {
-      status: user.status,
-      lastSeen: user.lastSeen
+      status: user.status || 'offline',
+      lastSeen: user.lastSeen || new Date()
     };
 
-    // Store in Redis cache for 15s
     await redisService.set(cacheKey, statusData, 15);
 
     return res.status(200).json({
