@@ -1,0 +1,118 @@
+import { createSlice } from '@reduxjs/toolkit';
+
+const initialState = {
+  conversations: [],
+  activeConversationId: null,
+  messages: {}, // { [conversationId]: [messageObjects] }
+  loadingConversations: false,
+  loadingMessages: false,
+  searchInChatQuery: '',
+  showSearchInChat: false
+};
+
+const conversationSlice = createSlice({
+  name: 'conversation',
+  initialState,
+  reducers: {
+    setConversations: (state, action) => {
+      state.conversations = action.payload;
+      state.loadingConversations = false;
+    },
+    setActiveConversation: (state, action) => {
+      state.activeConversationId = action.payload;
+    },
+    setMessages: (state, action) => {
+      const { conversationId, messages } = action.payload;
+      state.messages[conversationId] = messages;
+      state.loadingMessages = false;
+    },
+    addMessage: (state, action) => {
+      const msg = action.payload;
+      const convId = msg.conversationId;
+      if (!state.messages[convId]) {
+        state.messages[convId] = [];
+      }
+      // Avoid duplicates
+      const exists = state.messages[convId].some(m => m.messageId === msg.messageId);
+      if (!exists) {
+        state.messages[convId].push(msg);
+      }
+
+      // Update conversation lastMessage & updatedAt
+      const conv = state.conversations.find(c => c.conversationId === convId);
+      if (conv) {
+        conv.lastMessage = msg;
+        conv.updatedAt = msg.createdAt || new Date().toISOString();
+        if (state.activeConversationId !== convId) {
+          conv.unreadCount = (conv.unreadCount || 0) + 1;
+        }
+      }
+    },
+    removeMessage: (state, action) => {
+      const { conversationId, messageId } = action.payload;
+      if (state.messages[conversationId]) {
+        state.messages[conversationId] = state.messages[conversationId].filter(
+          m => m.messageId !== messageId
+        );
+      }
+    },
+    updateMessageStatus: (state, action) => {
+      const { messageId, conversationId, status, readAt } = action.payload;
+      if (state.messages[conversationId]) {
+        const msg = state.messages[conversationId].find(m => m.messageId === messageId);
+        if (msg) {
+          msg.status = status;
+          if (readAt) msg.readAt = readAt;
+        }
+      }
+    },
+    updateReactions: (state, action) => {
+      const { messageId, conversationId, reactions } = action.payload;
+      if (state.messages[conversationId]) {
+        const msg = state.messages[conversationId].find(m => m.messageId === messageId);
+        if (msg) {
+          msg.reactions = reactions;
+        }
+      }
+    },
+    clearUnreadCount: (state, action) => {
+      const convId = action.payload;
+      const conv = state.conversations.find(c => c.conversationId === convId);
+      if (conv) {
+        conv.unreadCount = 0;
+      }
+    },
+    setSearchInChatQuery: (state, action) => {
+      state.searchInChatQuery = action.payload;
+    },
+    toggleSearchInChat: (state, action) => {
+      state.showSearchInChat = action.payload !== undefined ? action.payload : !state.showSearchInChat;
+      if (!state.showSearchInChat) {
+        state.searchInChatQuery = '';
+      }
+    },
+    setLoadingConversations: (state, action) => {
+      state.loadingConversations = action.payload;
+    },
+    setLoadingMessages: (state, action) => {
+      state.loadingMessages = action.payload;
+    }
+  }
+});
+
+export const {
+  setConversations,
+  setActiveConversation,
+  setMessages,
+  addMessage,
+  removeMessage,
+  updateMessageStatus,
+  updateReactions,
+  clearUnreadCount,
+  setSearchInChatQuery,
+  toggleSearchInChat,
+  setLoadingConversations,
+  setLoadingMessages
+} = conversationSlice.actions;
+
+export default conversationSlice.reducer;
