@@ -84,8 +84,8 @@ const sendOtpEmail = async (toEmail, otpCode) => {
   // Prefer dedicated BREVO_API_KEY if specified, otherwise fall back to SMTP_PASS
   const brevoApiKey = process.env.BREVO_API_KEY || emailPass;
 
-  // Dynamically determine the verified sender to avoid SMTP relay rejection
-  const fromEmail = process.env.SMTP_FROM || (emailHost.includes('brevo') ? '"ConnectHub Security" <shahriarsakib1205@11591997.brevosend.com>' : `"ConnectHub Security" <${emailUser}>`);
+  // Use the verified account owner email as sender address to prevent Brevo silent spam drop
+  const fromEmail = process.env.SMTP_FROM || '"ConnectHub Security" <shahriarsakib1205@gmail.com>';
   const subject = `🔐 Your ConnectHub Verification Code: ${otpCode}`;
 
   const htmlContent = `
@@ -125,7 +125,6 @@ const sendOtpEmail = async (toEmail, otpCode) => {
       return true;
     } catch (err) {
       console.error('❌ Brevo HTTP API failed:', err.message);
-      // If HTTP API fails (e.g. key is not a REST API key), we log and try unblocked SMTP port 2525
       console.log('📡 API call rejected or unauthorized. Falling back to SMTP on port 2525...');
     }
   }
@@ -148,7 +147,7 @@ const sendOtpEmail = async (toEmail, otpCode) => {
 
         await transporter.sendMail({
           from: fromEmail,
-          replyTo: '"ConnectHub Security" <no-reply@connecthub.com>',
+          replyTo: '"ConnectHub Security" <shahriarsakib1205@gmail.com>',
           to: toEmail,
           subject: subject,
           html: htmlContent
@@ -200,7 +199,7 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     }
 
     const info = await testTransporter.sendMail({
-      from: '"ConnectHub Security" <no-reply@connecthub.com>',
+      from: '"ConnectHub Security" <shahriarsakib1205@gmail.com>',
       to: toEmail,
       subject: subject,
       html: htmlContent
