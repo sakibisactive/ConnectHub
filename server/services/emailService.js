@@ -33,7 +33,7 @@ const sendViaBrevoApi = (apiKey, fromEmail, toEmail, subject, htmlContent) => {
         'content-type': 'application/json',
         'content-length': Buffer.byteLength(data)
       },
-      timeout: 6000 // 6 seconds timeout
+      timeout: 5000 // 5 seconds timeout
     };
 
     const req = https.request(options, (res) => {
@@ -54,7 +54,7 @@ const sendViaBrevoApi = (apiKey, fromEmail, toEmail, subject, htmlContent) => {
 
     req.on('timeout', () => {
       req.destroy();
-      reject(new Error('Request timed out after 6s'));
+      reject(new Error('Request timed out after 5s'));
     });
 
     req.write(data);
@@ -103,7 +103,7 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     </div>
   `;
 
-  // 1. Primary HTTP API Dispatch (Super-fast, unblocked, bypasses cloud SMTP port blocks)
+  // 1. Primary HTTP API Dispatch for Brevo (Do NOT fall back to SMTP if it fails, as credentials are the same and SMTP is blocked)
   if (emailHost.includes('brevo') && emailPass) {
     try {
       console.log(`📡 Attempting Brevo HTTP API dispatch for ${toEmail}...`);
@@ -112,19 +112,20 @@ const sendOtpEmail = async (toEmail, otpCode) => {
       return true;
     } catch (err) {
       console.error('❌ Brevo HTTP API failed:', err.message);
+      throw new Error(`Brevo HTTP API Delivery Failed: ${err.message}`);
     }
   }
 
-  // 2. Secondary SMTP Fallback
+  // 2. Generic SMTP (Only used if host is not Brevo)
   if (emailUser && emailPass) {
     try {
-      console.log(`📡 Falling back to SMTP connection to ${emailHost}...`);
+      console.log(`📡 Connecting to SMTP host ${emailHost}...`);
       const transporter = nodemailer.createTransport({
         host: emailHost,
         port: emailPort,
         secure: emailPort === 465,
         auth: { user: emailUser, pass: emailPass },
-        connectionTimeout: 5000, // 5 seconds connection timeout
+        connectionTimeout: 5000,
         socketTimeout: 5000
       });
 
