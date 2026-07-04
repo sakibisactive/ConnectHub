@@ -36,30 +36,7 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     </div>
   `;
 
-  // 1. If RESEND_API_KEY is present in .env, use Resend API directly
-  if (resendApiKey) {
-    try {
-      const resend = new Resend(resendApiKey);
-      const { data, error } = await resend.emails.send({
-        from: 'ConnectHub Security <onboarding@resend.dev>',
-        to: [toEmail],
-        subject: `🔐 Your ConnectHub Verification Code: ${otpCode}`,
-        html: htmlContent
-      });
-
-      if (error) {
-        console.error('❌ Resend API Error:', error.message || error);
-        console.warn('⚠️  Notice: Resend free tier sends emails to the email address you registered with at Resend.com.');
-      } else {
-        console.log(`✅ [Resend API] Verification OTP email dispatched to ${toEmail} (ID: ${data?.id})`);
-        return true;
-      }
-    } catch (err) {
-      console.error('❌ Resend API Exception:', err.message);
-    }
-  }
-
-  // 2. If SMTP_USER and SMTP_PASS are present, use standard Nodemailer SMTP
+  // 1. If SMTP_USER and SMTP_PASS are set (e.g. Gmail App Password), use SMTP (No recipient restriction!)
   if (emailUser && emailPass) {
     try {
       const transporter = nodemailer.createTransport({
@@ -75,10 +52,33 @@ const sendOtpEmail = async (toEmail, otpCode) => {
         subject: `🔐 Your ConnectHub Verification Code: ${otpCode}`,
         html: htmlContent
       });
-      console.log(`✅ [SMTP] Email dispatched to ${toEmail}`);
+      console.log(`✅ [Gmail/SMTP] OTP Email delivered to ${toEmail}`);
       return true;
     } catch (err) {
       console.error('❌ SMTP Error:', err.message);
+    }
+  }
+
+  // 2. If RESEND_API_KEY is set, try Resend API
+  if (resendApiKey) {
+    try {
+      const resend = new Resend(resendApiKey);
+      const { data, error } = await resend.emails.send({
+        from: 'ConnectHub Security <onboarding@resend.dev>',
+        to: [toEmail],
+        subject: `🔐 Your ConnectHub Verification Code: ${otpCode}`,
+        html: htmlContent
+      });
+
+      if (error) {
+        console.error('❌ Resend API Error:', error.message || error);
+        console.warn('⚠️ Resend Free Tier Rule: Resend only allows sending test emails to your registered account (shahriarsakib1205@gmail.com). To send to OTHER emails, enter SMTP_USER and SMTP_PASS in .env or add a domain in Resend.');
+      } else {
+        console.log(`✅ [Resend API] Verification OTP email dispatched to ${toEmail} (ID: ${data?.id})`);
+        return true;
+      }
+    } catch (err) {
+      console.error('❌ Resend API Exception:', err.message);
     }
   }
 
