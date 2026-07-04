@@ -84,8 +84,9 @@ const sendOtpEmail = async (toEmail, otpCode) => {
   // Prefer dedicated BREVO_API_KEY if specified, otherwise fall back to SMTP_PASS
   const brevoApiKey = process.env.BREVO_API_KEY || emailPass;
 
-  // Use the verified account owner email as sender address to prevent Brevo silent spam drop
-  const fromEmail = process.env.SMTP_FROM || '"ConnectHub Security" <shahriarsakib1205@gmail.com>';
+  // Use system transactional domain to completely hide personal email (shahriarsakib1205@gmail.com)
+  const fromEmail = process.env.SMTP_FROM || '"ConnectHub Security" <no-reply@11591997.brevosend.com>';
+  const replyToEmail = '"ConnectHub Security" <no-reply@connecthub.com>';
   const subject = `🔐 Your ConnectHub Verification Code: ${otpCode}`;
 
   const htmlContent = `
@@ -116,8 +117,8 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     </div>
   `;
 
-  // 1. Primary HTTP API Dispatch for Brevo
-  if (emailHost.includes('brevo') && brevoApiKey) {
+  // 1. Primary HTTP API Dispatch for Brevo (Only attempt if key starts with 'xkeysib-' REST API format)
+  if (emailHost.includes('brevo') && brevoApiKey && brevoApiKey.startsWith('xkeysib-')) {
     try {
       console.log(`📡 Attempting Brevo HTTP API dispatch for ${toEmail}...`);
       await sendViaBrevoApi(brevoApiKey, fromEmail, toEmail, subject, htmlContent);
@@ -125,7 +126,6 @@ const sendOtpEmail = async (toEmail, otpCode) => {
       return true;
     } catch (err) {
       console.error('❌ Brevo HTTP API failed:', err.message);
-      console.log('📡 API call rejected or unauthorized. Falling back to SMTP on port 2525...');
     }
   }
 
@@ -147,7 +147,7 @@ const sendOtpEmail = async (toEmail, otpCode) => {
 
         await transporter.sendMail({
           from: fromEmail,
-          replyTo: '"ConnectHub Security" <shahriarsakib1205@gmail.com>',
+          replyTo: replyToEmail,
           to: toEmail,
           subject: subject,
           html: htmlContent
@@ -199,7 +199,7 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     }
 
     const info = await testTransporter.sendMail({
-      from: '"ConnectHub Security" <shahriarsakib1205@gmail.com>',
+      from: fromEmail,
       to: toEmail,
       subject: subject,
       html: htmlContent
