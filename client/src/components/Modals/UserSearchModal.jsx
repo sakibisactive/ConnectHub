@@ -74,7 +74,7 @@ export const UserSearchModal = () => {
           <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-500" />
           <input
             type="text"
-            placeholder="Search by exact username or email address..."
+            placeholder="Search by username (e.g. sarah_design)..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500"
@@ -85,14 +85,14 @@ export const UserSearchModal = () => {
           {!search.trim() ? (
             <div className="text-center py-8 text-xs text-slate-500 space-y-1">
               <Search className="w-6 h-6 text-slate-600 mx-auto mb-1 opacity-60" />
-              <p className="font-semibold text-slate-400">Search by Username or Email</p>
-              <p className="text-[11px]">Type a username or email above to find a contact.</p>
+              <p className="font-semibold text-slate-400">Search by Username</p>
+              <p className="text-[11px]">Type a username above to find a contact.</p>
             </div>
           ) : loading ? (
             <div className="text-center py-6 text-xs text-slate-400 animate-pulse">Searching directory...</div>
           ) : users.length === 0 ? (
             <div className="text-center py-6 text-xs text-slate-500">
-              No matching user found for "{search}"
+              No username matching "{search}"
             </div>
           ) : (
             users.map((u) => (
@@ -108,11 +108,6 @@ export const UserSearchModal = () => {
                   />
                   <div>
                     <h4 className="text-sm font-semibold text-slate-200">@{u.username}</h4>
-                    {u.email && (
-                      <p className="text-xs text-blue-400 flex items-center gap-1">
-                        {u.email}
-                      </p>
-                    )}
                   </div>
                 </div>
                 <button
