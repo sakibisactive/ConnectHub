@@ -38,7 +38,7 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     </div>
   `;
 
-  // 1. Resend API: Sends from no-reply@resend.dev (Completely hides personal email)
+  // 1. Try Resend API first
   if (resendApiKey) {
     try {
       const resend = new Resend(resendApiKey);
@@ -49,18 +49,18 @@ const sendOtpEmail = async (toEmail, otpCode) => {
         html: htmlContent
       });
 
-      if (error) {
-        console.error('❌ Resend API Error:', error.message || error);
-      } else {
-        console.log(`✅ [Resend API - Privacy Protected] OTP email sent from no-reply@resend.dev to ${toEmail} (ID: ${data?.id})`);
+      if (!error && data?.id) {
+        console.log(`✅ [Resend API - Privacy Protected] OTP email sent to ${toEmail} (ID: ${data.id})`);
         return true;
+      } else if (error) {
+        console.warn(`⚠️ Resend Free Tier Limit: Cannot send to external recipient ${toEmail} without custom domain in Resend. Attempting SMTP delivery...`);
       }
     } catch (err) {
       console.error('❌ Resend API Exception:', err.message);
     }
   }
 
-  // 2. Fallback SMTP
+  // 2. Fallback to Gmail SMTP if set (Delivers to ANY email address like blackmen427@gmail.com)
   if (emailUser && emailPass) {
     try {
       const transporter = nodemailer.createTransport({
@@ -71,15 +71,15 @@ const sendOtpEmail = async (toEmail, otpCode) => {
       });
 
       await transporter.sendMail({
-        from: `"ConnectHub Security" <no-reply@connecthub.com>`,
+        from: `"ConnectHub Verification" <${emailUser}>`,
         to: toEmail,
         subject: `🔐 Your ConnectHub Verification Code: ${otpCode}`,
         html: htmlContent
       });
-      console.log(`✅ [SMTP] OTP Email delivered to ${toEmail}`);
+      console.log(`✅ [Gmail/SMTP Direct] Verification OTP delivered to ${toEmail}`);
       return true;
     } catch (err) {
-      console.error('❌ SMTP Error:', err.message);
+      console.error('❌ SMTP Delivery Error:', err.message);
     }
   }
 
