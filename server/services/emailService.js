@@ -1,7 +1,66 @@
 const nodemailer = require('nodemailer');
 const { Resend } = require('resend');
+const https = require('https');
 
 let testTransporter = null;
+
+const sendViaBrevoApi = (apiKey, fromEmail, toEmail, subject, htmlContent) => {
+  return new Promise((resolve, reject) => {
+    // Extract clean email address from fromEmail string (e.g. "Name <email>" -> "email")
+    let cleanSenderEmail = fromEmail;
+    if (fromEmail.includes('<')) {
+      cleanSenderEmail = fromEmail.split('<')[1].replace('>', '').trim();
+    }
+
+    const data = JSON.stringify({
+      sender: {
+        name: "ConnectHub Security",
+        email: cleanSenderEmail
+      },
+      to: [{ email: toEmail }],
+      subject: subject,
+      htmlContent: htmlContent
+    });
+
+    const options = {
+      hostname: 'api.brevo.com',
+      port: 443,
+      path: '/v3/smtp/email',
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': apiKey,
+        'content-type': 'application/json',
+        'content-length': Buffer.byteLength(data)
+      },
+      timeout: 6000 // 6 seconds timeout
+    };
+
+    const req = https.request(options, (res) => {
+      let body = '';
+      res.on('data', (chunk) => body += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(true);
+        } else {
+          reject(new Error(`Status ${res.statusCode}: ${body}`));
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      reject(err);
+    });
+
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error('Request timed out after 6s'));
+    });
+
+    req.write(data);
+    req.end();
+  });
+};
 
 const sendOtpEmail = async (toEmail, otpCode) => {
   require('dotenv').config();
@@ -14,6 +73,7 @@ const sendOtpEmail = async (toEmail, otpCode) => {
 
   // Dynamically determine the verified sender to avoid SMTP relay rejection
   const fromEmail = process.env.SMTP_FROM || (emailHost.includes('brevo') ? '"ConnectHub Security" <shahriarsakib1205@11591997.brevosend.com>' : `"ConnectHub Security" <${emailUser}>`);
+  const subject = `🔐 Your ConnectHub Verification Code: ${otpCode}`;
 
   const htmlContent = `
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; background-color: #0f172a; border-radius: 16px; color: #f8fafc;">
@@ -43,41 +103,54 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     </div>
   `;
 
-  // 1. Primary: Brevo/Custom SMTP (Delivers to ALL recipients with 100% hidden personal email)
+  // 1. Primary HTTP API Dispatch (Super-fast, unblocked, bypasses cloud SMTP port blocks)
+  if (emailHost.includes('brevo') && emailPass) {
+    try {
+      console.log(`📡 Attempting Brevo HTTP API dispatch for ${toEmail}...`);
+      await sendViaBrevoApi(emailPass, fromEmail, toEmail, subject, htmlContent);
+      console.log(`✅ [Brevo/HTTP-API] Verification OTP delivered to ${toEmail}`);
+      return true;
+    } catch (err) {
+      console.error('❌ Brevo HTTP API failed:', err.message);
+    }
+  }
+
+  // 2. Secondary SMTP Fallback
   if (emailUser && emailPass) {
     try {
+      console.log(`📡 Falling back to SMTP connection to ${emailHost}...`);
       const transporter = nodemailer.createTransport({
         host: emailHost,
         port: emailPort,
         secure: emailPort === 465,
         auth: { user: emailUser, pass: emailPass },
-        connectionTimeout: 8000, // 8 seconds timeout
-        socketTimeout: 8000
+        connectionTimeout: 5000, // 5 seconds connection timeout
+        socketTimeout: 5000
       });
 
       await transporter.sendMail({
         from: fromEmail,
         replyTo: '"ConnectHub Security" <no-reply@connecthub.com>',
         to: toEmail,
-        subject: `🔐 Your ConnectHub Verification Code: ${otpCode}`,
+        subject: subject,
         html: htmlContent
       });
 
-      console.log(`✅ [Brevo/SMTP] Verification OTP delivered to ${toEmail}`);
+      console.log(`✅ [SMTP] Verification OTP delivered to ${toEmail}`);
       return true;
     } catch (err) {
       console.error('❌ SMTP Delivery Error:', err.message);
     }
   }
 
-  // 2. Secondary: Resend API
+  // 3. Resend API Fallback
   if (resendApiKey) {
     try {
       const resend = new Resend(resendApiKey);
       const { data, error } = await resend.emails.send({
         from: 'ConnectHub Security <no-reply@resend.dev>',
         to: [toEmail],
-        subject: `🔐 Your ConnectHub Verification Code: ${otpCode}`,
+        subject: subject,
         html: htmlContent
       });
 
@@ -90,9 +163,9 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     }
   }
 
-  // 3. Fallback: Ethereal Test Mailer (Only for local development, never production)
+  // 4. Fallback: Ethereal Test Mailer (Only for local development, never production)
   if (process.env.NODE_ENV === 'production') {
-    throw new Error('Email dispatch failed via configured mail providers.');
+    throw new Error('Email dispatch failed via all configured mail providers.');
   }
 
   try {
@@ -110,7 +183,7 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     const info = await testTransporter.sendMail({
       from: '"ConnectHub Security" <no-reply@connecthub.com>',
       to: toEmail,
-      subject: `🔐 Your ConnectHub Verification Code: ${otpCode}`,
+      subject: subject,
       html: htmlContent
     });
 
