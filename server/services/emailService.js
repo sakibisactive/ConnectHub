@@ -50,7 +50,9 @@ const sendOtpEmail = async (toEmail, otpCode) => {
         host: emailHost,
         port: emailPort,
         secure: emailPort === 465,
-        auth: { user: emailUser, pass: emailPass }
+        auth: { user: emailUser, pass: emailPass },
+        connectionTimeout: 8000, // 8 seconds timeout
+        socketTimeout: 8000
       });
 
       await transporter.sendMail({
@@ -88,7 +90,11 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     }
   }
 
-  // 3. Fallback: Ethereal Test Mailer
+  // 3. Fallback: Ethereal Test Mailer (Only for local development, never production)
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Email dispatch failed via configured mail providers.');
+  }
+
   try {
     if (!testTransporter) {
       const testAccount = await nodemailer.createTestAccount();
