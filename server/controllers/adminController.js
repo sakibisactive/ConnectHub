@@ -1,32 +1,33 @@
 const User = require('../models/User');
 const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
+const dbDataService = require('../services/dbDataService');
 
 const isAdminUser = (user) => {
   return user && (user.role === 'admin' || user.userId === 'usr_admin' || user.email === 'admin@connecthub.com');
 };
 
-// Admin Analytics
+// Admin Analytics & Full User List
 const getAnalytics = async (req, res) => {
   try {
     if (!isAdminUser(req.user)) {
       return res.status(403).json({ success: false, message: 'Access denied: Admin privileges required' });
     }
 
-    const totalUsers = await User.countDocuments();
-    const activeOnlineUsers = await User.countDocuments({ status: 'online' });
-    const totalConversations = await Conversation.countDocuments();
-    const totalMessages = await Message.countDocuments();
+    const allUsers = await dbDataService.getUsers('', 'usr_admin');
+
+    const totalUsers = allUsers.length;
+    const activeOnlineUsers = allUsers.filter(u => u.status === 'online').length;
+    let totalConversations = 0;
+    let totalMessages = 0;
+
+    if (dbDataService.isMongoConnected()) {
+      totalConversations = await Conversation.countDocuments();
+      totalMessages = await Message.countDocuments();
+    }
 
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    const messagesToday = await Message.countDocuments({ createdAt: { $gte: todayStart } });
-
-    // Recent active conversations
-    const recentConversations = await Conversation.find()
-      .sort({ updatedAt: -1 })
-      .limit(5)
-      .lean();
 
     return res.status(200).json({
       success: true,
@@ -34,11 +35,47 @@ const getAnalytics = async (req, res) => {
         totalUsers,
         activeOnlineUsers,
         totalConversations,
-        totalMessages,
-        messagesToday,
-        avgResponseTimeSec: 4.2, // Simulated analytics metric
-        popularChannelsCount: recentConversations.length
-      }
+        totalMessages
+      },
+      users: allUsers
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Get Chronological Chat Log for a Pair of Users (User A & User B)
+const getPairMessages = async (req, res) => {
+  try {
+    if (!isAdminUser(req.user)) {
+      return res.status(403).json({ success: false, message: 'Access denied: Admin privileges required' });
+    }
+
+    const { user1Id, user2Id } = req.query;
+    if (!user1Id || !user2Id) {
+      return res.status(400).json({ success: false, message: 'Both user1Id and user2Id are required' });
+    }
+
+    // Find direct conversation between user1 & user2
+    const conv = await dbDataService.findConversation({
+      type: 'individual',
+      participants: { $all: [user1Id, user2Id] }
+    });
+
+    if (!conv) {
+      return res.status(200).json({
+        success: true,
+        conversationId: null,
+        messages: []
+      });
+    }
+
+    const messages = await dbDataService.getMessages(conv.conversationId, 0, 100);
+
+    return res.status(200).json({
+      success: true,
+      conversationId: conv.conversationId,
+      messages
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -77,7 +114,11 @@ const exportData = async (req, res) => {
     }
 
     const format = req.query.format || 'json';
-    const messages = await Message.find().sort({ createdAt: -1 }).limit(1000).lean();
+    let messages = [];
+
+    if (dbDataService.isMongoConnected()) {
+      messages = await Message.find().sort({ createdAt: -1 }).limit(1000).lean();
+    }
 
     if (format === 'csv') {
       let csv = 'MessageId,ConversationId,SenderId,MessageType,Text,Status,CreatedAt\n';
@@ -101,7 +142,7 @@ const exportData = async (req, res) => {
   }
 };
 
-// Admin User Delete / Suspend
+// Admin User Delete
 const deleteUser = async (req, res) => {
   try {
     if (!isAdminUser(req.user)) {
@@ -109,7 +150,7 @@ const deleteUser = async (req, res) => {
     }
 
     const { userId } = req.params;
-    await User.deleteOne({ userId });
+    await dbDataService.deleteUser(userId);
     return res.status(200).json({ success: true, message: `User ${userId} deleted successfully` });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -118,6 +159,7 @@ const deleteUser = async (req, res) => {
 
 module.exports = {
   getAnalytics,
+  getPairMessages,
   broadcastMessage,
   exportData,
   deleteUser
