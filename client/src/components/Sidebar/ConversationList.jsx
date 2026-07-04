@@ -1,10 +1,12 @@
 import React, { useEffect } from 'react';
-import { useSelector } from 'react-redux';
-import { Users, Check, CheckCheck, MessageSquarePlus } from 'lucide-react';
+import { useDispatch, useSelector } from 'react-redux';
+import { Users, MessageSquarePlus } from 'lucide-react';
 import { useConversation } from '../../hooks/useConversation';
+import { setMobileSidebarOpen } from '../../store/slices/uiSlice';
 import { formatDistanceToNow } from 'date-fns';
 
 export const ConversationList = ({ filter, search }) => {
+  const dispatch = useDispatch();
   const { conversations, activeConversationId, selectConversation, fetchConversations, loadingConversations } = useConversation();
   const { user } = useSelector((state) => state.auth);
   const { onlineUsers } = useSelector((state) => state.socket);
@@ -12,6 +14,11 @@ export const ConversationList = ({ filter, search }) => {
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations]);
+
+  const handleSelect = (convId) => {
+    selectConversation(convId);
+    dispatch(setMobileSidebarOpen(false));
+  };
 
   const filteredConversations = conversations.filter((conv) => {
     if (filter !== 'all' && conv.type !== filter) return false;
@@ -66,7 +73,6 @@ export const ConversationList = ({ filter, search }) => {
           ? (conv.groupAvatar || 'https://images.unsplash.com/photo-1522071820081-009f0129c71c')
           : (otherUser?.profilePicture || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb');
 
-        // Check real-time online status from socket or user detail
         const userPresence = otherUser ? (onlineUsers[otherUser.userId] || { status: otherUser.status }) : null;
         const isOnline = userPresence?.status === 'online';
 
@@ -76,7 +82,7 @@ export const ConversationList = ({ filter, search }) => {
         return (
           <div
             key={conv.conversationId}
-            onClick={() => selectConversation(conv.conversationId)}
+            onClick={() => handleSelect(conv.conversationId)}
             className={`p-3 rounded-2xl cursor-pointer transition-all flex items-center gap-3 group border ${
               isActive
                 ? 'bg-blue-600/15 border-blue-500/40 text-white shadow-md'

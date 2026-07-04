@@ -3,6 +3,7 @@ import { createSlice } from '@reduxjs/toolkit';
 const initialState = {
   theme: localStorage.getItem('connecthub_theme') || 'dark',
   activeModal: null, // 'userSearch' | 'groupModal' | 'profileSettings' | 'groupInfo' | 'adminDashboard'
+  mobileSidebarOpen: false,
   soundEnabled: true,
   toasts: []
 };
@@ -17,6 +18,9 @@ const uiSlice = createSlice({
     },
     setActiveModal: (state, action) => {
       state.activeModal = action.payload;
+    },
+    setMobileSidebarOpen: (state, action) => {
+      state.mobileSidebarOpen = action.payload !== undefined ? action.payload : !state.mobileSidebarOpen;
     },
     toggleSound: (state) => {
       state.soundEnabled = !state.soundEnabled;
@@ -33,5 +37,5 @@ const uiSlice = createSlice({
   }
 });
 
-export const { setTheme, setActiveModal, toggleSound, addToast, removeToast } = uiSlice.actions;
+export const { setTheme, setActiveModal, setMobileSidebarOpen, toggleSound, addToast, removeToast } = uiSlice.actions;
 export default uiSlice.reducer;

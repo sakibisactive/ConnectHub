@@ -17,21 +17,12 @@ export function App() {
   // Connect Socket.IO
   useSocket();
 
-  // Register PWA Service Worker
-  useEffect(() => {
-    if ('serviceWorker' in navigator && import.meta.env.PROD) {
-      navigator.serviceWorker.register('/sw.js').catch((err) => {
-        console.warn('SW registration failed:', err);
-      });
-    }
-  }, []);
-
   if (!isAuthenticated) {
     return <AuthWrapper />;
   }
 
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans select-none">
+    <div className="flex h-screen w-full max-w-full bg-slate-950 text-slate-100 overflow-hidden font-sans select-none relative box-border">
       {/* Left Sidebar */}
       <Sidebar />
 

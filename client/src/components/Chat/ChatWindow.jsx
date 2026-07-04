@@ -9,10 +9,12 @@ import {
   X,
   MessageSquare,
   Sparkles,
-  Volume2
+  Volume2,
+  ArrowLeft,
+  Menu
 } from 'lucide-react';
 import { useConversation } from '../../hooks/useConversation';
-import { setActiveModal } from '../../store/slices/uiSlice';
+import { setActiveModal, setMobileSidebarOpen } from '../../store/slices/uiSlice';
 import { toggleSearchInChat, setSearchInChatQuery } from '../../store/slices/conversationSlice';
 import { MessageInput } from './MessageInput';
 import { MessageReaction } from './MessageReaction';
@@ -21,7 +23,7 @@ import { format } from 'date-fns';
 
 export const ChatWindow = () => {
   const dispatch = useDispatch();
-  const { conversations, activeConversationId, messages, sendMessage, markMessageAsRead } = useConversation();
+  const { conversations, activeConversationId, messages, sendMessage, markMessageAsRead, selectConversation } = useConversation();
   const { user } = useSelector((state) => state.auth);
   const { onlineUsers, typingUsers } = useSelector((state) => state.socket);
   const { searchInChatQuery, showSearchInChat } = useSelector((state) => state.conversation);
@@ -71,16 +73,35 @@ export const ChatWindow = () => {
     }
   };
 
+  // Mobile empty state / Chat selection screen
   if (!activeConversationId || !currentConv) {
     return (
-      <div className="flex-1 bg-slate-950 flex flex-col items-center justify-center p-8 text-center select-none">
+      <div className="flex-1 bg-slate-950 flex flex-col items-center justify-center p-6 text-center select-none w-full max-w-full h-full min-w-0 overflow-x-hidden">
+        {/* Mobile top bar to access contacts drawer */}
+        <div className="absolute top-4 left-4 md:hidden z-20">
+          <button
+            onClick={() => dispatch(setMobileSidebarOpen(true))}
+            className="p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-slate-300 hover:text-white flex items-center gap-2 text-xs font-semibold shadow-lg"
+          >
+            <Menu className="w-5 h-5 text-blue-400" />
+            <span>Open Contacts</span>
+          </button>
+        </div>
+
         <div className="w-20 h-20 rounded-3xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center mb-4 shadow-2xl">
           <MessageSquare className="w-10 h-10 text-blue-400" />
         </div>
         <h3 className="text-xl font-bold text-white mb-2">Welcome to ConnectHub</h3>
         <p className="text-slate-400 text-sm max-w-sm">
-          Select a contact or group from the sidebar to launch real-time WebSocket messaging with 12h self-deleting chat history.
+          Select a contact or group to start real-time messaging with 12h self-deleting chat history.
         </p>
+
+        <button
+          onClick={() => dispatch(setMobileSidebarOpen(true))}
+          className="mt-6 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-xl shadow-lg md:hidden flex items-center gap-2"
+        >
+          <Menu className="w-4 h-4" /> View Chat List
+        </button>
       </div>
     );
   }
@@ -91,15 +112,33 @@ export const ChatWindow = () => {
   });
 
   return (
-    <div className="flex-1 bg-slate-950 flex flex-col h-full overflow-hidden relative">
+    <div className="flex-1 bg-slate-950 flex flex-col h-full w-full max-w-full min-w-0 overflow-x-hidden relative">
       {/* Header */}
-      <div className="p-4 bg-slate-900/90 border-b border-slate-800 backdrop-blur-md flex items-center justify-between z-10">
-        <div className="flex items-center gap-3">
-          <div className="relative">
+      <div className="p-3 md:p-4 bg-slate-900/90 border-b border-slate-800 backdrop-blur-md flex items-center justify-between z-10 flex-shrink-0">
+        <div className="flex items-center gap-2.5 min-w-0">
+          {/* Mobile Back Button (Return to Chat List) */}
+          <button
+            onClick={() => selectConversation(null)}
+            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all md:hidden flex-shrink-0"
+            title="Back to Contact List"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+
+          {/* Mobile Drawer Toggle Icon */}
+          <button
+            onClick={() => dispatch(setMobileSidebarOpen(true))}
+            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all md:hidden flex-shrink-0"
+            title="Open Contacts Drawer"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+
+          <div className="relative flex-shrink-0">
             <img
               src={displayAvatar}
               alt={displayName}
-              className="w-10 h-10 rounded-full object-cover ring-2 ring-blue-500/20"
+              className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover ring-2 ring-blue-500/20"
             />
             {!isGroup && (
               <div
@@ -109,31 +148,32 @@ export const ChatWindow = () => {
               />
             )}
           </div>
-          <div>
-            <h2 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-              <span>{displayName}</span>
+
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-bold text-slate-100 flex items-center gap-1.5 truncate">
+              <span className="truncate">{displayName}</span>
               {isGroup && (
-                <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30">
-                  {currentConv.participants?.length || 0} Members
+                <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30 flex-shrink-0">
+                  {currentConv.participants?.length || 0}
                 </span>
               )}
             </h2>
-            <div className="text-xs text-slate-400 flex items-center gap-2">
+            <div className="text-[11px] md:text-xs text-slate-400 flex items-center gap-2 truncate">
               {isOthersTyping ? (
                 <span className="text-blue-400 font-medium animate-pulse flex items-center gap-1">
-                  <Sparkles className="w-3 h-3" /> User is typing...
+                  <Sparkles className="w-3 h-3" /> Typing...
                 </span>
               ) : isGroup ? (
-                <span>Group Chat • 12H Auto-Purge</span>
+                <span className="truncate">Group Chat • 12H Purge</span>
               ) : (
-                <span>{isRecipientOnline ? 'Online' : 'Offline'} • 12H Auto-Purge</span>
+                <span>{isRecipientOnline ? 'Online' : 'Offline'}</span>
               )}
             </div>
           </div>
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-shrink-0">
           <button
             onClick={() => dispatch(toggleSearchInChat())}
             className={`p-2 rounded-xl transition-all ${
@@ -157,7 +197,7 @@ export const ChatWindow = () => {
 
       {/* Find in Chat Banner */}
       {showSearchInChat && (
-        <div className="p-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-3 animate-slide-up z-10">
+        <div className="p-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-3 animate-slide-up z-10 flex-shrink-0">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
             <input
@@ -178,7 +218,7 @@ export const ChatWindow = () => {
       )}
 
       {/* Messages Stream */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-4 min-h-0 w-full max-w-full">
         {filteredMessages.length === 0 ? (
           <div className="text-center py-16 text-slate-500 text-xs">
             No messages found. Messages auto-delete after 12 hours.
@@ -197,7 +237,7 @@ export const ChatWindow = () => {
                 key={msg.messageId || idx}
                 onMouseEnter={() => setHoveredMsgId(msg.messageId)}
                 onMouseLeave={() => setHoveredMsgId(null)}
-                className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group relative`}
+                className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group relative w-full`}
               >
                 {isGroup && !isMe && (
                   <span className="text-[10px] text-slate-400 mb-1 font-medium ml-1">
@@ -205,12 +245,12 @@ export const ChatWindow = () => {
                   </span>
                 )}
 
-                <div className="flex items-end gap-2 max-w-[80%] md:max-w-[70%]">
+                <div className="flex items-end gap-2 max-w-[88%] sm:max-w-[75%] md:max-w-[70%]">
                   {!isMe && isGroup && (
                     <img
                       src={senderDetail?.profilePicture || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb'}
                       alt="Avatar"
-                      className="w-7 h-7 rounded-full object-cover mb-1 ring-1 ring-slate-700"
+                      className="w-7 h-7 rounded-full object-cover mb-1 ring-1 ring-slate-700 flex-shrink-0"
                     />
                   )}
 
@@ -226,7 +266,7 @@ export const ChatWindow = () => {
 
                   {/* Message Bubble */}
                   <div
-                    className={`p-3.5 rounded-2xl shadow-md text-sm relative ${
+                    className={`p-3 md:p-3.5 rounded-2xl shadow-md text-sm relative break-words ${
                       isMe
                         ? 'bg-blue-600 text-white rounded-br-none'
                         : 'bg-slate-900 border border-slate-800 text-slate-100 rounded-bl-none'
@@ -252,13 +292,13 @@ export const ChatWindow = () => {
                     {msg.mediaUrl && !isAudio && (
                       <div className="mb-2 rounded-xl overflow-hidden">
                         {msg.messageType === 'image' || msg.mediaUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                          <img src={msg.mediaUrl} alt="Attachment" className="max-h-60 rounded-xl object-cover" />
+                          <img src={msg.mediaUrl} alt="Attachment" className="max-h-60 rounded-xl object-cover w-full" />
                         ) : (
                           <a
                             href={msg.mediaUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-xs text-blue-300 underline font-medium block p-2 bg-slate-800/60 rounded-xl"
+                            className="text-xs text-blue-300 underline font-medium block p-2 bg-slate-800/60 rounded-xl break-all"
                           >
                             📎 {msg.fileName || 'Download Attachment'}
                           </a>
@@ -266,7 +306,7 @@ export const ChatWindow = () => {
                       </div>
                     )}
 
-                    {!isAudio && <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>}
+                    {!isAudio && <p className="leading-relaxed whitespace-pre-wrap break-words">{msg.text}</p>}
 
                     {/* Reactions Display Badges */}
                     {msg.reactions && msg.reactions.length > 0 && (
@@ -313,10 +353,12 @@ export const ChatWindow = () => {
       </div>
 
       {/* Input Control Component */}
-      <MessageInput
-        conversationId={activeConversationId}
-        onSendMessage={(t, type, url, file) => sendMessage(activeConversationId, t, type, url, file)}
-      />
+      <div className="flex-shrink-0 w-full max-w-full">
+        <MessageInput
+          conversationId={activeConversationId}
+          onSendMessage={(t, type, url, file) => sendMessage(activeConversationId, t, type, url, file)}
+        />
+      </div>
     </div>
   );
 };
