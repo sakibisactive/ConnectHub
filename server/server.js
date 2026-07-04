@@ -68,6 +68,17 @@ const io = new Server(server, {
 app.set('io', io);
 initSocketService(io);
 
+// Root Welcome Endpoint
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'online',
+    service: 'ConnectHub Backend API & Socket.IO WebSockets Server',
+    version: '1.0.0',
+    healthCheck: '/api/health',
+    timestamp: new Date()
+  });
+});
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
