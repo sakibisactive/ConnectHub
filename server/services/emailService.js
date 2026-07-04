@@ -12,6 +12,9 @@ const sendOtpEmail = async (toEmail, otpCode) => {
   const emailPass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
   const resendApiKey = process.env.RESEND_API_KEY;
 
+  // Dynamically determine the verified sender to avoid SMTP relay rejection
+  const fromEmail = process.env.SMTP_FROM || (emailHost.includes('brevo') ? '"ConnectHub Security" <shahriarsakib1205@11591997.brevosend.com>' : `"ConnectHub Security" <${emailUser}>`);
+
   const htmlContent = `
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; background-color: #0f172a; border-radius: 16px; color: #f8fafc;">
       <div style="text-align: center; margin-bottom: 24px;">
@@ -40,7 +43,7 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     </div>
   `;
 
-  // 1. Primary: Brevo/Custom SMTP (Delivers to ALL recipients worldwide)
+  // 1. Primary: Brevo/Custom SMTP (Delivers to ALL recipients with 100% hidden personal email)
   if (emailUser && emailPass) {
     try {
       const transporter = nodemailer.createTransport({
@@ -51,7 +54,7 @@ const sendOtpEmail = async (toEmail, otpCode) => {
       });
 
       await transporter.sendMail({
-        from: '"ConnectHub Security" <shahriarsakib1205@gmail.com>',
+        from: fromEmail,
         replyTo: '"ConnectHub Security" <no-reply@connecthub.com>',
         to: toEmail,
         subject: `🔐 Your ConnectHub Verification Code: ${otpCode}`,
