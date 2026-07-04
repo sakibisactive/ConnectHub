@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Search, X, UserPlus, MessageSquare, Mail, ShieldAlert } from 'lucide-react';
+import { Search, X, UserPlus, MessageSquare } from 'lucide-react';
 import { setActiveModal } from '../../store/slices/uiSlice';
 import { useConversation } from '../../hooks/useConversation';
 import api from '../../utils/api';
@@ -74,7 +74,7 @@ export const UserSearchModal = () => {
           <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-500" />
           <input
             type="text"
-            placeholder="Type exact username or email address to search..."
+            placeholder="Search by exact username or email address..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500"
@@ -86,7 +86,7 @@ export const UserSearchModal = () => {
             <div className="text-center py-8 text-xs text-slate-500 space-y-1">
               <Search className="w-6 h-6 text-slate-600 mx-auto mb-1 opacity-60" />
               <p className="font-semibold text-slate-400">Search by Username or Email</p>
-              <p className="text-[11px]">Users are hidden for privacy. Type a username or email above to find someone.</p>
+              <p className="text-[11px]">Type a username or email above to find a contact.</p>
             </div>
           ) : loading ? (
             <div className="text-center py-6 text-xs text-slate-400 animate-pulse">Searching directory...</div>
@@ -108,9 +108,11 @@ export const UserSearchModal = () => {
                   />
                   <div>
                     <h4 className="text-sm font-semibold text-slate-200">@{u.username}</h4>
-                    <p className="text-xs text-blue-400 flex items-center gap-1">
-                      <Mail className="w-3 h-3" /> {u.email}
-                    </p>
+                    {u.email && (
+                      <p className="text-xs text-blue-400 flex items-center gap-1">
+                        {u.email}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <button
