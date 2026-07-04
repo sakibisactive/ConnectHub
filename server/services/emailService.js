@@ -32,14 +32,19 @@ const sendViaBrevoApi = (apiKey, fromEmail, toEmail, subject, htmlContent) => {
         'api-key': apiKey,
         'content-type': 'application/json',
         'content-length': Buffer.byteLength(data)
-      },
-      timeout: 5000 // 5 seconds timeout
+      }
     };
+
+    let finished = false;
 
     const req = https.request(options, (res) => {
       let body = '';
       res.on('data', (chunk) => body += chunk);
       res.on('end', () => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(hardTimeout);
+
         if (res.statusCode >= 200 && res.statusCode < 300) {
           resolve(true);
         } else {
@@ -48,13 +53,19 @@ const sendViaBrevoApi = (apiKey, fromEmail, toEmail, subject, htmlContent) => {
       });
     });
 
-    req.on('error', (err) => {
-      reject(err);
-    });
-
-    req.on('timeout', () => {
+    // Hard timeout wrapper to catch DNS, TCP connect, SSL, and greeting phase hangs
+    const hardTimeout = setTimeout(() => {
+      if (finished) return;
+      finished = true;
       req.destroy();
-      reject(new Error('Request timed out after 5s'));
+      reject(new Error('Request timed out during connection/DNS phase (6s)'));
+    }, 6000);
+
+    req.on('error', (err) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(hardTimeout);
+      reject(err);
     });
 
     req.write(data);
