@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Shield, X, Radio, Download, CheckCircle2, AlertOctagon, Trash2, MessageSquare, Users, Eye } from 'lucide-react';
+import { Shield, X, Radio, Download, CheckCircle2, AlertOctagon, MessageSquare, Users, Eye } from 'lucide-react';
 import { setActiveModal } from '../../store/slices/uiSlice';
 import api from '../../utils/api';
 import { format } from 'date-fns';
@@ -15,7 +15,6 @@ export const AdminDashboardModal = () => {
   const [broadcastTitle, setBroadcastTitle] = useState('');
   const [broadcastMessage, setBroadcastMessage] = useState('');
   const [broadcastSuccess, setBroadcastSuccess] = useState('');
-  const [deletingUserId, setDeletingUserId] = useState(null);
 
   // Pairwise Inspection Drawer state
   const [activePair, setActivePair] = useState(null); // { u1, u2 }
@@ -41,21 +40,6 @@ export const AdminDashboardModal = () => {
       }
     } catch (err) {
       console.error('Fetch analytics error:', err);
-    }
-  };
-
-  const handleDeleteUser = async (userId, username) => {
-    if (!window.confirm(`Are you sure you want to permanently delete user @${username}?`)) return;
-    try {
-      setDeletingUserId(userId);
-      const res = await api.delete(`/admin/users/${userId}`);
-      if (res.data.success) {
-        setUserList((prev) => prev.filter((u) => u.userId !== userId));
-      }
-    } catch (err) {
-      console.error('Delete user error:', err);
-    } finally {
-      setDeletingUserId(null);
     }
   };
 
@@ -137,10 +121,10 @@ export const AdminDashboardModal = () => {
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
                 <span>ConnectHub System Admin Dashboard</span>
                 <span className="text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/30 font-mono">
-                  MASTER ROLE
+                  ADMIN ROLE
                 </span>
               </h3>
-              <p className="text-xs text-slate-400">Manage all registered users and inspect pairwise message blocks</p>
+              <p className="text-xs text-slate-400">View registered users and inspect pairwise message blocks</p>
             </div>
           </div>
           <button onClick={() => dispatch(setActiveModal(null))} className="p-1 text-slate-400 hover:text-white">
@@ -178,13 +162,13 @@ export const AdminDashboardModal = () => {
               </div>
             </div>
 
-            {/* 1. User Management List Table */}
+            {/* 1. Registered User Directory List (Without Delete Button) */}
             <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-3">
               <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                 <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Users className="w-4 h-4 text-blue-400" /> User Directory ({userList.length})
+                  <Users className="w-4 h-4 text-blue-400" /> Registered User Directory ({userList.length})
                 </h4>
-                <span className="text-[11px] text-slate-400">Admin can delete any user</span>
+                <span className="text-[11px] text-slate-400">Read-only view for system oversight</span>
               </div>
 
               <div className="divide-y divide-slate-800/60 max-h-56 overflow-y-auto">
@@ -212,13 +196,9 @@ export const AdminDashboardModal = () => {
                         </div>
                       </div>
 
-                      <button
-                        onClick={() => handleDeleteUser(u.userId, u.username)}
-                        disabled={deletingUserId === u.userId}
-                        className="px-3 py-1 bg-rose-500/10 hover:bg-rose-600 text-rose-400 hover:text-white rounded-xl border border-rose-500/20 text-[11px] font-semibold flex items-center gap-1 transition-all"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" /> Delete User
-                      </button>
+                      <span className="px-2.5 py-1 bg-slate-900 border border-slate-800 rounded-lg text-[11px] text-slate-400">
+                        {u.status === 'online' ? '🟢 Online' : '⚪ Offline'}
+                      </span>
                     </div>
                   ))
                 )}
