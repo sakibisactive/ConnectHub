@@ -36,20 +36,26 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     </div>
   `;
 
-  // 1. If RESEND_API_KEY is present in .env, use Resend API directly (No personal email exposed!)
+  // 1. If RESEND_API_KEY is present in .env, use Resend API directly
   if (resendApiKey) {
     try {
       const resend = new Resend(resendApiKey);
-      const data = await resend.emails.send({
+      const { data, error } = await resend.emails.send({
         from: 'ConnectHub Security <onboarding@resend.dev>',
         to: [toEmail],
         subject: `🔐 Your ConnectHub Verification Code: ${otpCode}`,
         html: htmlContent
       });
-      console.log(`✅ [Resend API] Verification OTP email dispatched to ${toEmail} (ID: ${data.id || data.data?.id})`);
-      return true;
+
+      if (error) {
+        console.error('❌ Resend API Error:', error.message || error);
+        console.warn('⚠️  Notice: Resend free tier sends emails to the email address you registered with at Resend.com.');
+      } else {
+        console.log(`✅ [Resend API] Verification OTP email dispatched to ${toEmail} (ID: ${data?.id})`);
+        return true;
+      }
     } catch (err) {
-      console.error('❌ Resend API Error:', err.message);
+      console.error('❌ Resend API Exception:', err.message);
     }
   }
 
@@ -76,7 +82,7 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     }
   }
 
-  // 3. Automated fallback test transport
+  // 3. Ethereal Test Mailer fallback
   try {
     if (!testTransporter) {
       const testAccount = await nodemailer.createTestAccount();
