@@ -4,9 +4,12 @@ const { Resend } = require('resend');
 let testTransporter = null;
 
 const sendOtpEmail = async (toEmail, otpCode) => {
-  const resendApiKey = process.env.RESEND_API_KEY;
+  // Ensure environment variables are dynamically refreshed
+  require('dotenv').config();
+
   const emailUser = process.env.SMTP_USER || process.env.EMAIL_USER;
   const emailPass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+  const resendApiKey = process.env.RESEND_API_KEY;
 
   const htmlContent = `
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; background-color: #0f172a; border-radius: 16px; color: #f8fafc;">
@@ -36,7 +39,7 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     </div>
   `;
 
-  // 1. If SMTP_USER and SMTP_PASS are set (e.g. Gmail App Password), use SMTP (No recipient restriction!)
+  // 1. Primary: Use Gmail SMTP (No recipient restriction! Delivers to ANY email address)
   if (emailUser && emailPass) {
     try {
       const transporter = nodemailer.createTransport({
@@ -59,7 +62,7 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     }
   }
 
-  // 2. If RESEND_API_KEY is set, try Resend API
+  // 2. Secondary: Resend API
   if (resendApiKey) {
     try {
       const resend = new Resend(resendApiKey);
@@ -72,7 +75,6 @@ const sendOtpEmail = async (toEmail, otpCode) => {
 
       if (error) {
         console.error('❌ Resend API Error:', error.message || error);
-        console.warn('⚠️ Resend Free Tier Rule: Resend only allows sending test emails to your registered account (shahriarsakib1205@gmail.com). To send to OTHER emails, enter SMTP_USER and SMTP_PASS in .env or add a domain in Resend.');
       } else {
         console.log(`✅ [Resend API] Verification OTP email dispatched to ${toEmail} (ID: ${data?.id})`);
         return true;
@@ -82,7 +84,7 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     }
   }
 
-  // 3. Ethereal Test Mailer fallback
+  // 3. Fallback: Ethereal Test Mailer
   try {
     if (!testTransporter) {
       const testAccount = await nodemailer.createTestAccount();
