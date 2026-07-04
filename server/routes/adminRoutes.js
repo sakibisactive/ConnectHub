@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { verifyAdmin, getAnalytics, broadcastMessage, exportData, deleteUser } = require('../controllers/adminController');
+const { getAnalytics, broadcastMessage, exportData, deleteUser } = require('../controllers/adminController');
+const { protect } = require('../middleware/authMiddleware');
 
-router.post('/verify', verifyAdmin);
-router.get('/analytics', getAnalytics);
-router.post('/broadcast', broadcastMessage);
-router.get('/export', exportData);
-router.delete('/users/:userId', deleteUser);
+router.get('/analytics', protect, getAnalytics);
+router.post('/broadcast', protect, broadcastMessage);
+router.get('/export', protect, exportData);
+router.delete('/users/:userId', protect, deleteUser);
 
 module.exports = router;

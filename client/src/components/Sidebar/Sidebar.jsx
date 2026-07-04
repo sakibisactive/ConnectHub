@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
-  MessageSquare,
-  Users,
   Plus,
   Search,
   Settings,
@@ -27,8 +25,9 @@ export const Sidebar = () => {
   const [filter, setFilter] = useState('all'); // 'all' | 'individual' | 'group'
   const [search, setSearch] = useState('');
 
+  const isAdmin = user && (user.role === 'admin' || user.userId === 'usr_admin' || user.email === 'admin@connecthub.com');
+
   // On Mobile: Hide sidebar when a conversation is active unless mobileSidebarOpen drawer is toggled
-  const isMobileView = typeof window !== 'undefined' && window.innerWidth < 768;
   const showSidebarOnMobile = !activeConversationId || mobileSidebarOpen;
 
   return (
@@ -66,7 +65,14 @@ export const Sidebar = () => {
                 />
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-slate-100">{user?.username}</h2>
+                <h2 className="text-sm font-semibold text-slate-100 flex items-center gap-1.5">
+                  <span>{user?.username}</span>
+                  {isAdmin && (
+                    <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded-md border border-amber-500/30 font-bold">
+                      ADMIN
+                    </span>
+                  )}
+                </h2>
                 <div className="flex items-center gap-1.5 text-xs text-slate-400">
                   <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-400' : 'bg-amber-400 animate-ping'}`} />
                   <span>{isConnected ? 'Online' : 'Connecting...'}</span>
@@ -83,13 +89,18 @@ export const Sidebar = () => {
               >
                 {soundEnabled ? <Volume2 className="w-4 h-4 text-blue-400" /> : <VolumeX className="w-4 h-4" />}
               </button>
-              <button
-                onClick={() => { dispatch(setActiveModal('adminDashboard')); dispatch(setMobileSidebarOpen(false)); }}
-                className="p-2 rounded-xl text-slate-400 hover:text-amber-300 hover:bg-slate-800 transition-all"
-                title="Admin & Instructor Portal"
-              >
-                <Shield className="w-4 h-4" />
-              </button>
+
+              {/* Admin Shield Icon Button ONLY visible for Admin logged-in account */}
+              {isAdmin && (
+                <button
+                  onClick={() => { dispatch(setActiveModal('adminDashboard')); dispatch(setMobileSidebarOpen(false)); }}
+                  className="p-2 rounded-xl text-slate-400 hover:text-amber-300 hover:bg-slate-800 transition-all"
+                  title="Admin Portal"
+                >
+                  <Shield className="w-4 h-4 text-amber-400" />
+                </button>
+              )}
+
               <button
                 onClick={() => { dispatch(setActiveModal('profileSettings')); dispatch(setMobileSidebarOpen(false)); }}
                 className="p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all"

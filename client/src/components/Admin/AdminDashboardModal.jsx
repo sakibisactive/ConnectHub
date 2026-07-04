@@ -1,42 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Shield, X, Lock, Activity, Radio, Download, Trash2, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Shield, X, Radio, Download, CheckCircle2, AlertOctagon } from 'lucide-react';
 import { setActiveModal } from '../../store/slices/uiSlice';
 import api from '../../utils/api';
 
 export const AdminDashboardModal = () => {
   const dispatch = useDispatch();
   const { activeModal } = useSelector((state) => state.ui);
-
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
-  const [password, setPassword] = useState('');
-  const [authError, setAuthError] = useState('');
+  const { user } = useSelector((state) => state.auth);
 
   const [analytics, setAnalytics] = useState(null);
   const [broadcastTitle, setBroadcastTitle] = useState('');
   const [broadcastMessage, setBroadcastMessage] = useState('');
   const [broadcastSuccess, setBroadcastSuccess] = useState('');
 
+  const isAdmin = user && (user.role === 'admin' || user.userId === 'usr_admin' || user.email === 'admin@connecthub.com');
+
   useEffect(() => {
-    if (activeModal === 'adminDashboard' && isAdminAuthenticated) {
+    if (activeModal === 'adminDashboard' && isAdmin) {
       fetchAnalytics();
     }
-  }, [activeModal, isAdminAuthenticated]);
+  }, [activeModal, isAdmin]);
 
   if (activeModal !== 'adminDashboard') return null;
-
-  const handleAdminLogin = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await api.post('/admin/verify', { password });
-      if (res.data.success) {
-        setIsAdminAuthenticated(true);
-        setAuthError('');
-      }
-    } catch (err) {
-      setAuthError('Invalid Master Password');
-    }
-  };
 
   const fetchAnalytics = async () => {
     try {
@@ -93,8 +79,8 @@ export const AdminDashboardModal = () => {
               <Shield className="w-6 h-6 text-amber-400" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-white">Instructor & Admin Master Control</h3>
-              <p className="text-xs text-slate-400">Real-time system telemetry, announcements, and audit log export</p>
+              <h3 className="text-lg font-bold text-white">System Admin Portal</h3>
+              <p className="text-xs text-slate-400 font-medium">Real-time system telemetry & announcements</p>
             </div>
           </div>
           <button onClick={() => dispatch(setActiveModal(null))} className="p-1 text-slate-400 hover:text-white">
@@ -102,35 +88,14 @@ export const AdminDashboardModal = () => {
           </button>
         </div>
 
-        {!isAdminAuthenticated ? (
-          <form onSubmit={handleAdminLogin} className="max-w-sm mx-auto py-8 space-y-4">
-            <div className="text-center">
-              <Lock className="w-12 h-12 text-amber-400 mx-auto mb-2" />
-              <h4 className="text-base font-bold text-white">Enter Master Password</h4>
-              <p className="text-xs text-slate-400 mt-1">Default: connecthub_admin_2026</p>
-            </div>
-
-            {authError && (
-              <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs text-center font-medium">
-                {authError}
-              </div>
-            )}
-
-            <input
-              type="password"
-              placeholder="Master Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-slate-100 text-center placeholder-slate-500 focus:outline-none focus:border-amber-500"
-            />
-
-            <button
-              type="submit"
-              className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl shadow-lg transition-all"
-            >
-              Authenticate Master Access
-            </button>
-          </form>
+        {!isAdmin ? (
+          <div className="py-12 text-center space-y-3">
+            <AlertOctagon className="w-12 h-12 text-rose-500 mx-auto animate-pulse" />
+            <h4 className="text-base font-bold text-white">Access Denied</h4>
+            <p className="text-xs text-slate-400 max-w-xs mx-auto">
+              Only system administrators logged in with dedicated admin credentials can access this panel.
+            </p>
+          </div>
         ) : (
           <div className="space-y-6">
             {/* Analytics Metric Cards Grid */}

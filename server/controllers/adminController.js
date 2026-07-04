@@ -2,20 +2,17 @@ const User = require('../models/User');
 const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 
-const ADMIN_MASTER_PASS = process.env.ADMIN_MASTER_PASS || 'connecthub_admin_2026';
-
-// Verify Admin Master Password
-const verifyAdmin = (req, res) => {
-  const { password } = req.body;
-  if (password === ADMIN_MASTER_PASS) {
-    return res.status(200).json({ success: true, message: 'Admin authentication successful' });
-  }
-  return res.status(401).json({ success: false, message: 'Invalid admin password' });
+const isAdminUser = (user) => {
+  return user && (user.role === 'admin' || user.userId === 'usr_admin' || user.email === 'admin@connecthub.com');
 };
 
 // Admin Analytics
 const getAnalytics = async (req, res) => {
   try {
+    if (!isAdminUser(req.user)) {
+      return res.status(403).json({ success: false, message: 'Access denied: Admin privileges required' });
+    }
+
     const totalUsers = await User.countDocuments();
     const activeOnlineUsers = await User.countDocuments({ status: 'online' });
     const totalConversations = await Conversation.countDocuments();
@@ -51,6 +48,10 @@ const getAnalytics = async (req, res) => {
 // Broadcast System Announcement
 const broadcastMessage = async (req, res) => {
   try {
+    if (!isAdminUser(req.user)) {
+      return res.status(403).json({ success: false, message: 'Access denied: Admin privileges required' });
+    }
+
     const { title, message } = req.body;
     const io = req.app.get('io');
 
@@ -71,6 +72,10 @@ const broadcastMessage = async (req, res) => {
 // Export Chat History as CSV / JSON
 const exportData = async (req, res) => {
   try {
+    if (!isAdminUser(req.user)) {
+      return res.status(403).json({ success: false, message: 'Access denied: Admin privileges required' });
+    }
+
     const format = req.query.format || 'json';
     const messages = await Message.find().sort({ createdAt: -1 }).limit(1000).lean();
 
@@ -99,6 +104,10 @@ const exportData = async (req, res) => {
 // Admin User Delete / Suspend
 const deleteUser = async (req, res) => {
   try {
+    if (!isAdminUser(req.user)) {
+      return res.status(403).json({ success: false, message: 'Access denied: Admin privileges required' });
+    }
+
     const { userId } = req.params;
     await User.deleteOne({ userId });
     return res.status(200).json({ success: true, message: `User ${userId} deleted successfully` });
@@ -108,7 +117,6 @@ const deleteUser = async (req, res) => {
 };
 
 module.exports = {
-  verifyAdmin,
   getAnalytics,
   broadcastMessage,
   exportData,
