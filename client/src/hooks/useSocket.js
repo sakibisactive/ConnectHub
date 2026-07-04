@@ -26,8 +26,10 @@ export const useSocket = () => {
       return;
     }
 
+    const socketUrl = import.meta.env.VITE_SOCKET_URL || '/';
+
     // Connect Socket.IO
-    const socket = io('/', {
+    const socket = io(socketUrl, {
       auth: { token },
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 5
