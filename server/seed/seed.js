@@ -6,7 +6,7 @@ const User = require('../models/User');
 const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 
-const mongoURI = process.env.MONGO_URI || '';
+const mongoURI = process.env.MONGO_URI || 'mongodb+srv://shahriarsakib1205_db_user:oSjwNqTC25MiSj4p@cluster0.kfonus1.mongodb.net/connecthub?retryWrites=true&w=majority&appName=Cluster0';
 
 const seedData = async () => {
   if (!mongoURI || mongoURI.includes('<db_password>')) {
@@ -173,7 +173,6 @@ const seedData = async () => {
     process.exit(0);
   } catch (error) {
     console.warn('⚠️ MongoDB Atlas Seeding notice:', error.message);
-    console.log('💡 The server is configured to fall back to memory store until MongoDB Atlas connection is active.');
     process.exit(0);
   }
 };
