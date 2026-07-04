@@ -28,7 +28,7 @@ const messageSchema = new mongoose.Schema({
   },
   messageType: {
     type: String,
-    enum: ['text', 'image', 'file'],
+    enum: ['text', 'image', 'file', 'audio'],
     default: 'text'
   },
   mediaUrl: {
@@ -59,6 +59,7 @@ const messageSchema = new mongoose.Schema({
     type: Date,
     default: null
   }
-});
+}
+);
 
 module.exports = mongoose.model('Message', messageSchema);
