@@ -6,7 +6,6 @@ let testTransporter = null;
 
 const sendViaBrevoApi = (apiKey, fromEmail, toEmail, subject, htmlContent) => {
   return new Promise((resolve, reject) => {
-    // Extract clean email address from fromEmail string (e.g. "Name <email>" -> "email")
     let cleanSenderEmail = fromEmail;
     if (fromEmail.includes('<')) {
       cleanSenderEmail = fromEmail.split('<')[1].replace('>', '').trim();
@@ -53,7 +52,6 @@ const sendViaBrevoApi = (apiKey, fromEmail, toEmail, subject, htmlContent) => {
       });
     });
 
-    // Hard timeout wrapper to catch DNS, TCP connect, SSL, and greeting phase hangs
     const hardTimeout = setTimeout(() => {
       if (finished) return;
       finished = true;
@@ -81,11 +79,10 @@ const sendOtpEmail = async (toEmail, otpCode) => {
   const emailPass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
   const resendApiKey = process.env.RESEND_API_KEY;
 
-  // Prefer dedicated BREVO_API_KEY if specified, otherwise fall back to SMTP_PASS
   const brevoApiKey = process.env.BREVO_API_KEY || emailPass;
 
-  // Use system transactional domain to completely hide personal email (shahriarsakib1205@gmail.com)
-  const fromEmail = process.env.SMTP_FROM || '"ConnectHub Security" <no-reply@11591997.brevosend.com>';
+  // Use verified sender address on Brevo account
+  const fromEmail = process.env.SMTP_FROM || '"ConnectHub Security" <shahriarsakib1205@gmail.com>';
   const replyToEmail = '"ConnectHub Security" <no-reply@connecthub.com>';
   const subject = `🔐 Your ConnectHub Verification Code: ${otpCode}`;
 
@@ -117,7 +114,7 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     </div>
   `;
 
-  // 1. Primary HTTP API Dispatch for Brevo (Only attempt if key starts with 'xkeysib-' REST API format)
+  // 1. Primary HTTP API Dispatch for Brevo (Only attempt if key starts with 'xkeysib-')
   if (emailHost.includes('brevo') && brevoApiKey && brevoApiKey.startsWith('xkeysib-')) {
     try {
       console.log(`📡 Attempting Brevo HTTP API dispatch for ${toEmail}...`);
