@@ -10,6 +10,16 @@ const { JWT_SECRET } = require('../middleware/authMiddleware');
 // In-Memory OTP Store: email -> { otp, expiresAt }
 const otpStore = new Map();
 
+// Periodic Cleanup Interval to prevent unverified OTP Memory Leaks (BUG-02)
+setInterval(() => {
+  const now = Date.now();
+  for (const [email, data] of otpStore.entries()) {
+    if (data.expiresAt < now) {
+      otpStore.delete(email);
+    }
+  }
+}, 10 * 60 * 1000);
+
 const generateToken = (userId, res) => {
   const token = jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
   
@@ -226,7 +236,7 @@ const login = async (req, res) => {
 const logout = async (req, res) => {
   try {
     if (req.user) {
-      if (dbDataService.isMongoConnected()) {
+      if (dbDataService.isMongoConnected() && req.user.userId !== 'usr_admin') {
         await User.findOneAndUpdate({ userId: req.user.userId }, { status: 'offline', lastSeen: new Date() });
       }
       await redisService.del(`user:status:${req.user.userId}`);
@@ -265,6 +275,13 @@ const updateProfile = async (req, res) => {
     if (profilePicture) user.profilePicture = profilePicture;
     if (status) user.status = status;
 
+    if (user.userId === 'usr_admin') {
+      return res.status(200).json({
+        success: true,
+        user
+      });
+    }
+
     if (dbDataService.isMongoConnected()) {
       await User.findOneAndUpdate({ userId: user.userId }, { username, profilePicture, status });
     }
@@ -286,6 +303,10 @@ const deleteProfile = async (req, res) => {
     const userId = req.user?.userId;
     if (!userId) {
       return res.status(400).json({ success: false, message: 'User not authenticated' });
+    }
+
+    if (req.user?.role === 'admin' || userId === 'usr_admin') {
+      return res.status(403).json({ success: false, message: 'System Admin account cannot be deleted.' });
     }
 
     await dbDataService.deleteUser(userId);

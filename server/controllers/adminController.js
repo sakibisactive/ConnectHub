@@ -48,7 +48,7 @@ const getAnalytics = async (req, res) => {
   }
 };
 
-// Get Chronological Chat Log for a Pair of Users (User A & User B)
+// Get Chronological Chat Log for a Pair of Users (User A & User B) - Fix BUG-04
 const getPairMessages = async (req, res) => {
   try {
     if (!isAdminUser(req.user)) {
@@ -60,26 +60,14 @@ const getPairMessages = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Both user1Id and user2Id are required' });
     }
 
+    const conv = await dbDataService.findConversation({
+      type: 'individual',
+      participants: { $all: [user1Id, user2Id] }
+    });
+
     let messages = [];
-
-    if (dbDataService.isMongoConnected()) {
-      const conv = await Conversation.findOne({
-        type: 'individual',
-        participants: { $all: [user1Id, user2Id] }
-      }).lean();
-
-      if (conv) {
-        messages = await Message.find({ conversationId: conv.conversationId }).sort({ createdAt: 1 }).lean();
-      }
-    } else {
-      const conv = memoryStore.conversations.find(c =>
-        c.type === 'individual' &&
-        c.participants.includes(user1Id) &&
-        c.participants.includes(user2Id)
-      );
-      if (conv) {
-        messages = memoryStore.messages.filter(m => m.conversationId === conv.conversationId);
-      }
+    if (conv) {
+      messages = await dbDataService.getAllMessagesForAdmin(conv.conversationId);
     }
 
     return res.status(200).json({

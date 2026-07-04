@@ -28,9 +28,10 @@ export const useSocket = () => {
 
     const socketUrl = import.meta.env.VITE_SOCKET_URL || '/';
 
-    // Connect Socket.IO
+    // Connect Socket.IO with cross-domain credentials support (BUG-03 Fix)
     const socket = io(socketUrl, {
       auth: { token },
+      withCredentials: true,
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 5
     });
@@ -100,6 +101,7 @@ export const useSocket = () => {
       dispatch(setUserOffline(data));
     });
 
+    // BUG-08 Fix: Listener attached cleanly with teardown
     socket.on('system_broadcast', (data) => {
       soundManager.playNotificationSound();
       dispatch(addToast({
@@ -110,6 +112,14 @@ export const useSocket = () => {
     });
 
     return () => {
+      socket.off('system_broadcast');
+      socket.off('receive_message');
+      socket.off('user_typing');
+      socket.off('user_stop_typing');
+      socket.off('message_read');
+      socket.off('reaction_updated');
+      socket.off('user_online');
+      socket.off('user_offline');
       socket.disconnect();
       socketInstance = null;
     };

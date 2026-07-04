@@ -2,12 +2,12 @@ const { v4: uuidv4 } = require('uuid');
 const dbDataService = require('../services/dbDataService');
 const redisService = require('../config/redis');
 
-// 8. GET /api/conversations/:conversationId/messages
+// 8. GET /api/conversations/:conversationId/messages (Fix BUG-07: Sanitize limit & skip)
 const getMessages = async (req, res) => {
   try {
     const { conversationId } = req.params;
-    const limit = parseInt(req.query.limit, 10) || 50;
-    const skip = parseInt(req.query.skip, 10) || 0;
+    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit, 10) || 50));
+    const skip = Math.max(0, parseInt(req.query.skip, 10) || 0);
     const page = Math.floor(skip / limit) + 1;
 
     const cacheKey = `messages:${conversationId}:${page}`;

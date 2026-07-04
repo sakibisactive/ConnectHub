@@ -112,7 +112,7 @@ const dbDataService = {
     return null;
   },
 
-  // MESSAGE OPERATIONS (Enforces 12-Hour Message Deletion Window)
+  // MESSAGE OPERATIONS (Enforces 12-Hour Message Deletion Window for Regular Users)
   async getMessages(conversationId, skip = 0, limit = 50) {
     const twelveHoursAgo = new Date(Date.now() - TWELVE_HOURS_MS);
 
@@ -131,6 +131,16 @@ const dbDataService = {
       .filter(m => m.conversationId === conversationId && new Date(m.createdAt) >= twelveHoursAgo)
       .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
     return msgs.slice(skip, skip + limit);
+  },
+
+  // Dedicated Admin Audit Query - Fix BUG-04 (No 12-Hour Truncation for Admin Inspections)
+  async getAllMessagesForAdmin(conversationId) {
+    if (isMongoConnected()) {
+      return await Message.find({ conversationId }).sort({ createdAt: 1 }).lean();
+    }
+    return memoryStore.messages
+      .filter(m => m.conversationId === conversationId)
+      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
   },
 
   async createMessage(msgData) {

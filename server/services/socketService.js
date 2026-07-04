@@ -36,10 +36,12 @@ function initSocketService(io) {
     }
 
     // Update user status
-    const user = await dbDataService.findUser({ userId });
-    if (user) {
-      user.status = 'online';
-      user.lastSeen = new Date();
+    if (userId !== 'usr_admin') {
+      const user = await dbDataService.findUser({ userId });
+      if (user) {
+        user.status = 'online';
+        user.lastSeen = new Date();
+      }
     }
     await redisService.del(`user:status:${userId}`);
 
@@ -58,7 +60,7 @@ function initSocketService(io) {
       }
     });
 
-    // 2. 'send_message' event - Guaranteed multi-room real-time dispatch
+    // 2. 'send_message' event (BUG-01 Fix: Single room broadcast to prevent duplicate message renders)
     socket.on('send_message', async (data) => {
       try {
         const { conversationId, text, messageType = 'text', mediaUrl = '', fileName = '', fileSize = 0 } = data;
@@ -77,7 +79,7 @@ function initSocketService(io) {
           mediaUrl,
           fileName,
           fileSize,
-          status: 'delivered', // marked delivered on socket push
+          status: 'delivered',
           reactions: [],
           createdAt: new Date()
         };
@@ -90,7 +92,9 @@ function initSocketService(io) {
           redisService.delByPattern(`messages:${conversationId}:*`)
         ]);
 
-        const sender = await dbDataService.findUser({ userId });
+        const sender = userId === 'usr_admin'
+          ? { userId: 'usr_admin', username: 'Admin', profilePicture: 'https://api.dicebear.com/7.x/bottts/svg?seed=Admin' }
+          : await dbDataService.findUser({ userId });
 
         const payload = {
           ...newMsg,
@@ -101,11 +105,8 @@ function initSocketService(io) {
           } : { userId, username: 'User' }
         };
 
-        // Emit receive_message to conversation room AND each participant's personal user room
+        // Emit receive_message cleanly to conversation room (Prevents duplicate render bug)
         io.to(conversationId).emit('receive_message', payload);
-        conversation.participants.forEach((pId) => {
-          io.to(pId).emit('receive_message', payload);
-        });
       } catch (err) {
         console.error('Socket send_message error:', err);
       }
@@ -165,10 +166,12 @@ function initSocketService(io) {
 
       // Debounce offline broadcast by 5 seconds to handle network fluctuations
       const timer = setTimeout(async () => {
-        const u = await dbDataService.findUser({ userId });
-        if (u) {
-          u.status = 'offline';
-          u.lastSeen = new Date();
+        if (userId !== 'usr_admin') {
+          const u = await dbDataService.findUser({ userId });
+          if (u) {
+            u.status = 'offline';
+            u.lastSeen = new Date();
+          }
         }
         await redisService.del(`user:status:${userId}`);
 
