@@ -49,7 +49,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// Rate Limiting (Max 100 requests per 15 min per IP, message endpoints handled separately)
+// Rate Limiting (Max 300 requests per 15 min per IP)
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 300,
