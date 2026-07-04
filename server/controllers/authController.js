@@ -49,7 +49,9 @@ const sendOtp = async (req, res) => {
       expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes validity
     });
 
-    // Send Real Email via Nodemailer
+    console.log(`🔐 [SECURITY OTP GENERATED FOR ${normalizedEmail}]: ${otp}`);
+
+    // Send Real Email via Email Service
     await emailService.sendOtpEmail(normalizedEmail, otp);
 
     return res.status(200).json({
@@ -57,6 +59,7 @@ const sendOtp = async (req, res) => {
       message: `Verification OTP sent to ${normalizedEmail}. Please check your email inbox.`
     });
   } catch (error) {
+    console.error('Send OTP error:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -71,6 +74,12 @@ const register = async (req, res) => {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+    const normalizedUsername = username.toLowerCase().trim();
+
+    // Prevent reserving Admin credentials
+    if (normalizedUsername === 'admin' || normalizedEmail === 'admin@connecthub.com') {
+      return res.status(400).json({ success: false, message: 'Username or email reserved for system security.' });
+    }
 
     // Verify OTP code
     const storedOtpObj = otpStore.get(normalizedEmail);
@@ -84,7 +93,7 @@ const register = async (req, res) => {
 
     // Double-check if username or email already exists
     const userExists = await dbDataService.findUser({
-      $or: [{ email: normalizedEmail }, { username: username.toLowerCase().trim() }]
+      $or: [{ email: normalizedEmail }, { username: normalizedUsername }]
     });
 
     if (userExists) {
@@ -130,7 +139,7 @@ const register = async (req, res) => {
   }
 };
 
-// 2. POST /api/auth/login
+// 2. POST /api/auth/login (Allows Username OR Email; Handles strict Admin credentials)
 const login = async (req, res) => {
   try {
     const { emailOrUsername, password } = req.body;
@@ -140,6 +149,31 @@ const login = async (req, res) => {
     }
 
     const inputClean = emailOrUsername.toLowerCase().trim();
+
+    // FIXED ADMIN LOGIN GATEKEEPER
+    if (inputClean === 'admin@connecthub.com' || inputClean === 'admin') {
+      if (password === 'connecthubadminsakib') {
+        const adminUser = {
+          userId: 'usr_admin',
+          username: 'Admin',
+          email: 'admin@connecthub.com',
+          role: 'admin',
+          status: 'online',
+          profilePicture: 'https://api.dicebear.com/7.x/bottts/svg?seed=Admin',
+          createdAt: new Date()
+        };
+        const token = generateToken(adminUser.userId, res);
+        return res.status(200).json({
+          success: true,
+          token,
+          user: adminUser
+        });
+      } else {
+        return res.status(401).json({ success: false, message: 'Invalid admin credentials' });
+      }
+    }
+
+    // NORMAL USER LOGIN
     let user = await dbDataService.findUser({
       $or: [
         { email: inputClean },
@@ -148,12 +182,7 @@ const login = async (req, res) => {
     });
 
     if (!user) {
-      if (password === 'password123') {
-        user = await dbDataService.findUser({ username: inputClean });
-      }
-      if (!user) {
-        return res.status(401).json({ success: false, message: 'Invalid credentials' });
-      }
+      return res.status(401).json({ success: false, message: 'Invalid username or password' });
     }
 
     let isMatch = false;
@@ -161,12 +190,8 @@ const login = async (req, res) => {
       isMatch = await bcrypt.compare(password, user.passwordHash);
     } catch (e) {}
 
-    if (!isMatch && password === 'password123') {
-      isMatch = true;
-    }
-
     if (!isMatch) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+      return res.status(401).json({ success: false, message: 'Invalid username or password' });
     }
 
     user.status = 'online';
@@ -255,11 +280,38 @@ const updateProfile = async (req, res) => {
   }
 };
 
+// DELETE /api/auth/profile (Self account deletion)
+const deleteProfile = async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(400).json({ success: false, message: 'User not authenticated' });
+    }
+
+    await dbDataService.deleteUser(userId);
+    await redisService.del(`user:status:${userId}`);
+
+    res.cookie('jwt', '', {
+      httpOnly: true,
+      expires: new Date(0)
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Your profile has been deleted permanently.'
+    });
+  } catch (error) {
+    console.error('Delete profile error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   sendOtp,
   register,
   login,
   logout,
   getMe,
-  updateProfile
+  updateProfile,
+  deleteProfile
 };

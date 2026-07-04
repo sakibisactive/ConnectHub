@@ -86,6 +86,18 @@ export const useAuth = () => {
     }
   };
 
+  const deleteAccount = async () => {
+    try {
+      await api.delete('/auth/profile');
+      dispatch(logout());
+      dispatch(addToast({ type: 'info', title: 'Account Deleted', message: 'Your account has been permanently removed.' }));
+      return true;
+    } catch (err) {
+      dispatch(addToast({ type: 'error', title: 'Deletion Error', message: err.response?.data?.message || 'Failed to delete account.' }));
+      return false;
+    }
+  };
+
   return {
     user,
     token,
@@ -96,6 +108,7 @@ export const useAuth = () => {
     requestOtp,
     registerUser,
     logoutUser,
-    updateProfileData
+    updateProfileData,
+    deleteAccount
   };
 };

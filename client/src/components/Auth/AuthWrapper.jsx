@@ -30,7 +30,8 @@ export const AuthWrapper = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isLogin) {
-      await loginUser(formData.email, formData.password);
+      // Users can log in with username and password after registration
+      await loginUser(formData.username, formData.password);
     } else {
       if (!otpSent) {
         await handleSendOtp(e);
@@ -92,42 +93,44 @@ export const AuthWrapper = () => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Username Input Field */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+              Username
+            </label>
+            <div className="relative">
+              <User className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
+              <input
+                type="text"
+                required
+                placeholder="Enter your username..."
+                value={formData.username}
+                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                className="w-full bg-slate-900/90 border border-slate-700/60 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          {/* Email Input Field (Required for Registration) */}
           {!isLogin && (
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                Username
+                Email Address (Strictly 1 Account)
               </label>
               <div className="relative">
-                <User className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
+                <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
                 <input
-                  type="text"
+                  type="email"
                   required
-                  placeholder="e.g. alex_dev"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  className="w-full bg-slate-900/90 border border-slate-700/60 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                  disabled={otpSent}
+                  placeholder="Enter your email address..."
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="w-full bg-slate-900/90 border border-slate-700/60 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 disabled:opacity-60"
                 />
               </div>
             </div>
           )}
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-              Email Address
-            </label>
-            <div className="relative">
-              <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
-              <input
-                type="email"
-                required
-                disabled={!isLogin && otpSent}
-                placeholder="Enter your email address..."
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full bg-slate-900/90 border border-slate-700/60 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 disabled:opacity-60"
-              />
-            </div>
-          </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">

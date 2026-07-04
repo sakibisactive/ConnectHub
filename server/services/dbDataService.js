@@ -43,6 +43,19 @@ const dbDataService = {
     return userData;
   },
 
+  async deleteUser(userId) {
+    if (isMongoConnected()) {
+      await User.deleteOne({ userId });
+      await Conversation.deleteMany({ participants: userId });
+      await Message.deleteMany({ senderId: userId });
+      return true;
+    }
+    memoryStore.users = memoryStore.users.filter(u => u.userId !== userId);
+    memoryStore.conversations = memoryStore.conversations.filter(c => !c.participants.includes(userId));
+    memoryStore.messages = memoryStore.messages.filter(m => m.senderId !== userId);
+    return true;
+  },
+
   // Search by username OR email address
   async getUsers(searchQuery, currentUserId) {
     if (isMongoConnected()) {
