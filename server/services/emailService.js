@@ -38,12 +38,12 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     </div>
   `;
 
-  // 1. Primary: Use Resend API (Protects developer privacy! Sender shown is "ConnectHub Security <onboarding@resend.dev>")
+  // 1. Resend API: Sends from no-reply@resend.dev (Completely hides personal email)
   if (resendApiKey) {
     try {
       const resend = new Resend(resendApiKey);
       const { data, error } = await resend.emails.send({
-        from: 'ConnectHub Security <onboarding@resend.dev>',
+        from: 'ConnectHub Security <no-reply@resend.dev>',
         to: [toEmail],
         subject: `🔐 Your ConnectHub Verification Code: ${otpCode}`,
         html: htmlContent
@@ -52,7 +52,7 @@ const sendOtpEmail = async (toEmail, otpCode) => {
       if (error) {
         console.error('❌ Resend API Error:', error.message || error);
       } else {
-        console.log(`✅ [Resend API - Privacy Protected] OTP email sent to ${toEmail} (ID: ${data?.id})`);
+        console.log(`✅ [Resend API - Privacy Protected] OTP email sent from no-reply@resend.dev to ${toEmail} (ID: ${data?.id})`);
         return true;
       }
     } catch (err) {
@@ -60,7 +60,7 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     }
   }
 
-  // 2. Secondary: Gmail SMTP
+  // 2. Fallback SMTP
   if (emailUser && emailPass) {
     try {
       const transporter = nodemailer.createTransport({
@@ -71,12 +71,12 @@ const sendOtpEmail = async (toEmail, otpCode) => {
       });
 
       await transporter.sendMail({
-        from: `"ConnectHub Security" <${emailUser}>`,
+        from: `"ConnectHub Security" <no-reply@connecthub.com>`,
         to: toEmail,
         subject: `🔐 Your ConnectHub Verification Code: ${otpCode}`,
         html: htmlContent
       });
-      console.log(`✅ [Gmail/SMTP] OTP Email delivered to ${toEmail}`);
+      console.log(`✅ [SMTP] OTP Email delivered to ${toEmail}`);
       return true;
     } catch (err) {
       console.error('❌ SMTP Error:', err.message);
@@ -97,7 +97,7 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     }
 
     const info = await testTransporter.sendMail({
-      from: '"ConnectHub Security" <security@connecthub.com>',
+      from: '"ConnectHub Security" <no-reply@connecthub.com>',
       to: toEmail,
       subject: `🔐 Your ConnectHub Verification Code: ${otpCode}`,
       html: htmlContent
