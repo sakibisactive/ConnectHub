@@ -19,6 +19,20 @@ const protect = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
+
+    // Dynamic Admin Virtual Token Gatekeeper
+    if (decoded.userId === 'usr_admin') {
+      req.user = {
+        userId: 'usr_admin',
+        username: 'Admin',
+        email: 'admin@connecthub.com',
+        role: 'admin',
+        status: 'online',
+        profilePicture: 'https://api.dicebear.com/7.x/bottts/svg?seed=Admin'
+      };
+      return next();
+    }
+
     const foundUser = await dbDataService.findUser({ userId: decoded.userId });
     
     if (!foundUser) {

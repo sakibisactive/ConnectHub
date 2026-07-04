@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 const dbDataService = require('../services/dbDataService');
+const memoryStore = require('../config/inMemoryDb');
 
 const isAdminUser = (user) => {
   return user && (user.role === 'admin' || user.userId === 'usr_admin' || user.email === 'admin@connecthub.com');
@@ -14,20 +15,22 @@ const getAnalytics = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Access denied: Admin privileges required' });
     }
 
-    const allUsers = await dbDataService.getUsers('', 'usr_admin');
-
-    const totalUsers = allUsers.length;
-    const activeOnlineUsers = allUsers.filter(u => u.status === 'online').length;
+    let allUsers = [];
     let totalConversations = 0;
     let totalMessages = 0;
 
     if (dbDataService.isMongoConnected()) {
+      allUsers = await User.find({ userId: { $ne: 'usr_admin' } }).select('-passwordHash').lean();
       totalConversations = await Conversation.countDocuments();
       totalMessages = await Message.countDocuments();
+    } else {
+      allUsers = memoryStore.users.filter(u => u.userId !== 'usr_admin');
+      totalConversations = memoryStore.conversations.length;
+      totalMessages = memoryStore.messages.length;
     }
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const totalUsers = allUsers.length;
+    const activeOnlineUsers = allUsers.filter(u => u.status === 'online').length;
 
     return res.status(200).json({
       success: true,
@@ -40,6 +43,7 @@ const getAnalytics = async (req, res) => {
       users: allUsers
     });
   } catch (error) {
+    console.error('getAnalytics error:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -56,28 +60,34 @@ const getPairMessages = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Both user1Id and user2Id are required' });
     }
 
-    // Find direct conversation between user1 & user2
-    const conv = await dbDataService.findConversation({
-      type: 'individual',
-      participants: { $all: [user1Id, user2Id] }
-    });
+    let messages = [];
 
-    if (!conv) {
-      return res.status(200).json({
-        success: true,
-        conversationId: null,
-        messages: []
-      });
+    if (dbDataService.isMongoConnected()) {
+      const conv = await Conversation.findOne({
+        type: 'individual',
+        participants: { $all: [user1Id, user2Id] }
+      }).lean();
+
+      if (conv) {
+        messages = await Message.find({ conversationId: conv.conversationId }).sort({ createdAt: 1 }).lean();
+      }
+    } else {
+      const conv = memoryStore.conversations.find(c =>
+        c.type === 'individual' &&
+        c.participants.includes(user1Id) &&
+        c.participants.includes(user2Id)
+      );
+      if (conv) {
+        messages = memoryStore.messages.filter(m => m.conversationId === conv.conversationId);
+      }
     }
-
-    const messages = await dbDataService.getMessages(conv.conversationId, 0, 100);
 
     return res.status(200).json({
       success: true,
-      conversationId: conv.conversationId,
       messages
     });
   } catch (error) {
+    console.error('getPairMessages error:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -118,6 +128,8 @@ const exportData = async (req, res) => {
 
     if (dbDataService.isMongoConnected()) {
       messages = await Message.find().sort({ createdAt: -1 }).limit(1000).lean();
+    } else {
+      messages = memoryStore.messages;
     }
 
     if (format === 'csv') {
@@ -142,19 +154,9 @@ const exportData = async (req, res) => {
   }
 };
 
-// Admin User Delete
+// Admin User Delete (Blocked for Admin security rule)
 const deleteUser = async (req, res) => {
-  try {
-    if (!isAdminUser(req.user)) {
-      return res.status(403).json({ success: false, message: 'Access denied: Admin privileges required' });
-    }
-
-    const { userId } = req.params;
-    await dbDataService.deleteUser(userId);
-    return res.status(200).json({ success: true, message: `User ${userId} deleted successfully` });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
-  }
+  return res.status(403).json({ success: false, message: 'Admin account cannot delete users' });
 };
 
 module.exports = {
