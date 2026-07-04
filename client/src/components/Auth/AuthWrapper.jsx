@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageSquare, Shield, Zap, Lock, Mail, User, Eye, EyeOff, Sparkles, CheckCircle2, KeyRound, AlertCircle } from 'lucide-react';
+import { MessageSquare, Zap, Lock, Mail, User, Eye, EyeOff, CheckCircle2, KeyRound, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
 export const AuthWrapper = () => {
@@ -23,14 +23,14 @@ export const AuthWrapper = () => {
     const res = await requestOtp(formData.email);
     if (res?.success) {
       setOtpSent(true);
-      setFormData((prev) => ({ ...prev, otp: '' })); // Must be manually typed from email inbox
+      setFormData((prev) => ({ ...prev, otp: '' }));
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isLogin) {
-      await loginUser(formData.email || formData.username, formData.password);
+      await loginUser(formData.email, formData.password);
     } else {
       if (!otpSent) {
         await handleSendOtp(e);
@@ -48,21 +48,12 @@ export const AuthWrapper = () => {
 
       {/* Brand Header */}
       <div className="text-center mb-8 z-10 animate-fade-in">
-        <div className="inline-flex items-center gap-3 bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-full mb-4">
-          <Sparkles className="w-4 h-4 text-blue-400" />
-          <span className="text-xs font-semibold text-blue-300 uppercase tracking-wider">
-            Real-Time Socket.IO • Email OTP Authenticated
-          </span>
-        </div>
         <div className="flex items-center justify-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/25">
             <MessageSquare className="w-6 h-6 text-white" />
           </div>
           <h1 className="text-4xl font-extrabold text-white tracking-tight">ConnectHub</h1>
         </div>
-        <p className="text-slate-400 text-sm mt-2 max-w-sm">
-          Strict security email OTP verification, 1-account-per-email rule, and 12H auto-deleting chats.
-        </p>
       </div>
 
       {/* Card Form */}
@@ -122,15 +113,15 @@ export const AuthWrapper = () => {
 
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-              {isLogin ? 'Email or Username' : 'Email Address (Strictly 1 Account)'}
+              Email Address
             </label>
             <div className="relative">
               <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
               <input
-                type={isLogin ? 'text' : 'email'}
+                type="email"
                 required
                 disabled={!isLogin && otpSent}
-                placeholder={isLogin ? 'alex@connecthub.com or alex_dev' : 'alex@connecthub.com'}
+                placeholder="Enter your email address..."
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="w-full bg-slate-900/90 border border-slate-700/60 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 disabled:opacity-60"
