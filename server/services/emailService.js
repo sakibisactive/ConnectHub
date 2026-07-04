@@ -58,8 +58,8 @@ const sendViaBrevoApi = (apiKey, fromEmail, toEmail, subject, htmlContent) => {
       if (finished) return;
       finished = true;
       req.destroy();
-      reject(new Error('Request timed out during connection/DNS phase (6s)'));
-    }, 6000);
+      reject(new Error('Request timed out during connection/DNS phase (5s)'));
+    }, 5000);
 
     req.on('error', (err) => {
       if (finished) return;
@@ -77,10 +77,12 @@ const sendOtpEmail = async (toEmail, otpCode) => {
   require('dotenv').config();
 
   const emailHost = process.env.SMTP_HOST || 'smtp.gmail.com';
-  const emailPort = parseInt(process.env.SMTP_PORT || '587', 10);
   const emailUser = process.env.SMTP_USER || process.env.EMAIL_USER;
   const emailPass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
   const resendApiKey = process.env.RESEND_API_KEY;
+
+  // Prefer dedicated BREVO_API_KEY if specified, otherwise fall back to SMTP_PASS
+  const brevoApiKey = process.env.BREVO_API_KEY || emailPass;
 
   // Dynamically determine the verified sender to avoid SMTP relay rejection
   const fromEmail = process.env.SMTP_FROM || (emailHost.includes('brevo') ? '"ConnectHub Security" <shahriarsakib1205@11591997.brevosend.com>' : `"ConnectHub Security" <${emailUser}>`);
@@ -114,44 +116,49 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     </div>
   `;
 
-  // 1. Primary HTTP API Dispatch for Brevo (Do NOT fall back to SMTP if it fails, as credentials are the same and SMTP is blocked)
-  if (emailHost.includes('brevo') && emailPass) {
+  // 1. Primary HTTP API Dispatch for Brevo
+  if (emailHost.includes('brevo') && brevoApiKey) {
     try {
       console.log(`📡 Attempting Brevo HTTP API dispatch for ${toEmail}...`);
-      await sendViaBrevoApi(emailPass, fromEmail, toEmail, subject, htmlContent);
+      await sendViaBrevoApi(brevoApiKey, fromEmail, toEmail, subject, htmlContent);
       console.log(`✅ [Brevo/HTTP-API] Verification OTP delivered to ${toEmail}`);
       return true;
     } catch (err) {
       console.error('❌ Brevo HTTP API failed:', err.message);
-      throw new Error(`Brevo HTTP API Delivery Failed: ${err.message}`);
+      // If HTTP API fails (e.g. key is not a REST API key), we log and try unblocked SMTP port 2525
+      console.log('📡 API call rejected or unauthorized. Falling back to SMTP on port 2525...');
     }
   }
 
-  // 2. Generic SMTP (Only used if host is not Brevo)
+  // 2. SMTP Delivery (Try Port 2525 first as it is unblocked on Render, then fall back to 587)
   if (emailUser && emailPass) {
-    try {
-      console.log(`📡 Connecting to SMTP host ${emailHost}...`);
-      const transporter = nodemailer.createTransport({
-        host: emailHost,
-        port: emailPort,
-        secure: emailPort === 465,
-        auth: { user: emailUser, pass: emailPass },
-        connectionTimeout: 5000,
-        socketTimeout: 5000
-      });
+    const portsToTry = emailHost.includes('brevo') ? [2525, 587] : [587, 465];
+    
+    for (const port of portsToTry) {
+      try {
+        console.log(`📡 Connecting to SMTP host ${emailHost} on port ${port}...`);
+        const transporter = nodemailer.createTransport({
+          host: emailHost,
+          port: port,
+          secure: port === 465,
+          auth: { user: emailUser, pass: emailPass },
+          connectionTimeout: 5000,
+          socketTimeout: 5000
+        });
 
-      await transporter.sendMail({
-        from: fromEmail,
-        replyTo: '"ConnectHub Security" <no-reply@connecthub.com>',
-        to: toEmail,
-        subject: subject,
-        html: htmlContent
-      });
+        await transporter.sendMail({
+          from: fromEmail,
+          replyTo: '"ConnectHub Security" <no-reply@connecthub.com>',
+          to: toEmail,
+          subject: subject,
+          html: htmlContent
+        });
 
-      console.log(`✅ [SMTP] Verification OTP delivered to ${toEmail}`);
-      return true;
-    } catch (err) {
-      console.error('❌ SMTP Delivery Error:', err.message);
+        console.log(`✅ [SMTP/Port-${port}] Verification OTP delivered to ${toEmail}`);
+        return true;
+      } catch (err) {
+        console.error(`❌ SMTP Port ${port} Delivery Error:`, err.message);
+      }
     }
   }
 
