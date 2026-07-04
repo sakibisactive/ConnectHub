@@ -1,19 +1,18 @@
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Settings, X, Save, Trash2, AlertTriangle } from 'lucide-react';
+import { Settings, X, Save } from 'lucide-react';
 import { setActiveModal } from '../../store/slices/uiSlice';
 import { useAuth } from '../../hooks/useAuth';
 
 export const ProfileSettingsModal = () => {
   const dispatch = useDispatch();
   const { activeModal } = useSelector((state) => state.ui);
-  const { user, updateProfileData, deleteAccount } = useAuth();
+  const { user, updateProfileData } = useAuth();
 
   const [username, setUsername] = useState(user?.username || '');
   const [profilePicture, setProfilePicture] = useState(user?.profilePicture || '');
   const [status, setStatus] = useState(user?.status || 'online');
   const [saving, setSaving] = useState(false);
-  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
 
   if (activeModal !== 'profileSettings') return null;
 
@@ -22,13 +21,6 @@ export const ProfileSettingsModal = () => {
     setSaving(true);
     const success = await updateProfileData({ username, profilePicture, status });
     setSaving(false);
-    if (success) {
-      dispatch(setActiveModal(null));
-    }
-  };
-
-  const handleDeleteProfile = async () => {
-    const success = await deleteAccount();
     if (success) {
       dispatch(setActiveModal(null));
     }
@@ -102,43 +94,6 @@ export const ProfileSettingsModal = () => {
             <span>{saving ? 'Saving Changes...' : 'Save Profile'}</span>
           </button>
         </form>
-
-        {/* Delete Profile Section */}
-        <div className="pt-4 border-t border-slate-800">
-          {!showConfirmDelete ? (
-            <button
-              type="button"
-              onClick={() => setShowConfirmDelete(true)}
-              className="w-full py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-semibold rounded-xl border border-rose-500/20 transition-all flex items-center justify-center gap-2 text-xs"
-            >
-              <Trash2 className="w-4 h-4" />
-              <span>Delete My Account Permanently</span>
-            </button>
-          ) : (
-            <div className="p-3 bg-rose-950/60 border border-rose-500/40 rounded-xl space-y-3 animate-fade-in">
-              <div className="flex items-center gap-2 text-rose-300 text-xs font-bold">
-                <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0" />
-                <span>Delete Account? This cannot be undone!</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmDelete(false)}
-                  className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDeleteProfile}
-                  className="flex-1 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold rounded-lg shadow"
-                >
-                  Yes, Delete & Logout
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
