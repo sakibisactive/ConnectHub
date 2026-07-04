@@ -1,19 +1,46 @@
 const nodemailer = require('nodemailer');
 
-// Configure SMTP transporter
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '587', 10),
-  secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
-  auth: {
-    user: process.env.SMTP_USER || process.env.EMAIL_USER || '',
-    pass: process.env.SMTP_PASS || process.env.EMAIL_PASS || ''
+let testAccountCreated = false;
+let testTransporter = null;
+
+const getTransporter = async () => {
+  // If user provided custom SMTP details in .env, use them
+  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+    return nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT || '587', 10),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    });
   }
-});
+
+  // Otherwise, automatically create a REAL Ethereal SMTP test account for instant internet mail dispatches
+  if (!testTransporter) {
+    try {
+      const testAccount = await nodemailer.createTestAccount();
+      testTransporter = nodemailer.createTransport({
+        host: 'smtp.ethereal.email',
+        port: 587,
+        secure: false,
+        auth: {
+          user: testAccount.user,
+          pass: testAccount.pass
+        }
+      });
+      console.log(`✉️ Automated Real SMTP Account created (${testAccount.user})`);
+    } catch (e) {
+      console.error('Failed to create test email transport:', e.message);
+    }
+  }
+  return testTransporter;
+};
 
 const sendOtpEmail = async (toEmail, otpCode) => {
   const mailOptions = {
-    from: `"ConnectHub Security" <${process.env.SMTP_USER || 'no-reply@connecthub.com'}>`,
+    from: `"ConnectHub Security" <${process.env.SMTP_USER || 'security@connecthub.com'}>`,
     to: toEmail,
     subject: `🔐 ConnectHub Verification Code: ${otpCode}`,
     html: `
@@ -34,11 +61,16 @@ const sendOtpEmail = async (toEmail, otpCode) => {
   };
 
   try {
-    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-      await transporter.sendMail(mailOptions);
-      console.log(`✅ Real OTP email sent to ${toEmail}`);
-    } else {
-      console.log(`ℹ️ [Email Dispatch Simulated for ${toEmail}] Verification OTP Code: ${otpCode}`);
+    const transporter = await getTransporter();
+    if (!transporter) return false;
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Email dispatched to ${toEmail} (Message ID: ${info.messageId})`);
+
+    // If using test account, log preview URL
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+    if (previewUrl) {
+      console.log(`📩 View Real Sent Email Inbox Preview: ${previewUrl}`);
     }
     return true;
   } catch (error) {
