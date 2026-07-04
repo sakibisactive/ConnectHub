@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const User = require('../models/User');
 const redisService = require('../config/redis');
 const dbDataService = require('../services/dbDataService');
+const emailService = require('../services/emailService');
 const { JWT_SECRET } = require('../middleware/authMiddleware');
 
 // In-Memory OTP Store: email -> { otp, expiresAt }
@@ -48,12 +49,12 @@ const sendOtp = async (req, res) => {
       expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes validity
     });
 
-    console.log(`📧 OTP generated for ${normalizedEmail}: [ ${otp} ]`);
+    // Send Real Email via Nodemailer
+    await emailService.sendOtpEmail(normalizedEmail, otp);
 
     return res.status(200).json({
       success: true,
-      message: `OTP sent to ${normalizedEmail}`,
-      demoOtp: otp // Included for instant frontend testing
+      message: `Verification OTP sent to ${normalizedEmail}. Please check your email inbox.`
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -74,11 +75,11 @@ const register = async (req, res) => {
     // Verify OTP code
     const storedOtpObj = otpStore.get(normalizedEmail);
     if (!storedOtpObj || storedOtpObj.expiresAt < Date.now()) {
-      return res.status(400).json({ success: false, message: 'OTP expired or not requested. Please click Send OTP.' });
+      return res.status(400).json({ success: false, message: 'OTP expired or not requested. Please click Send Email OTP Code.' });
     }
 
     if (storedOtpObj.otp !== otp.trim()) {
-      return res.status(400).json({ success: false, message: 'Invalid OTP code. Please check and try again.' });
+      return res.status(400).json({ success: false, message: 'Incorrect OTP code. Please check your email and try again.' });
     }
 
     // Double-check if username or email already exists

@@ -6,7 +6,6 @@ export const AuthWrapper = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
-  const [demoOtpCode, setDemoOtpCode] = useState('');
 
   const [formData, setFormData] = useState({
     username: '',
@@ -24,10 +23,7 @@ export const AuthWrapper = () => {
     const res = await requestOtp(formData.email);
     if (res?.success) {
       setOtpSent(true);
-      if (res.demoOtp) {
-        setDemoOtpCode(res.demoOtp);
-        setFormData((prev) => ({ ...prev, otp: res.demoOtp })); // Auto fill for ease of demo testing
-      }
+      setFormData((prev) => ({ ...prev, otp: '' })); // Must be manually typed from email inbox
     }
   };
 
@@ -59,7 +55,7 @@ export const AuthWrapper = () => {
         <div className="inline-flex items-center gap-3 bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-full mb-4">
           <Sparkles className="w-4 h-4 text-blue-400" />
           <span className="text-xs font-semibold text-blue-300 uppercase tracking-wider">
-            Real-Time Socket.IO • 12H Self-Deleting Chat Engine
+            Real-Time Socket.IO • Email OTP Authenticated
           </span>
         </div>
         <div className="flex items-center justify-center gap-3">
@@ -69,7 +65,7 @@ export const AuthWrapper = () => {
           <h1 className="text-4xl font-extrabold text-white tracking-tight">ConnectHub</h1>
         </div>
         <p className="text-slate-400 text-sm mt-2 max-w-sm">
-          Instant WebSocket communication with Email OTP Auth, search by email, and auto-purged chat history.
+          Strict security email OTP verification, 1-account-per-email rule, and 12H auto-deleting chats.
         </p>
       </div>
 
@@ -130,7 +126,7 @@ export const AuthWrapper = () => {
 
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-              {isLogin ? 'Email or Username' : 'Email Address (1 Account per Email)'}
+              {isLogin ? 'Email or Username' : 'Email Address (Strictly 1 Account)'}
             </label>
             <div className="relative">
               <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
@@ -170,17 +166,14 @@ export const AuthWrapper = () => {
             </div>
           </div>
 
-          {/* OTP Input Field for Registration Step 2 */}
+          {/* OTP Code Input Field (Strict Manual Input from Email) */}
           {!isLogin && otpSent && (
             <div className="animate-fade-in space-y-2">
-              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-300 flex items-center justify-between">
-                <span>📩 OTP Code Sent! Demo Code:</span>
-                <span className="font-mono font-bold text-sm bg-amber-400 text-slate-950 px-2 py-0.5 rounded">
-                  {demoOtpCode}
-                </span>
+              <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl text-xs text-blue-300 flex items-center justify-between">
+                <span>📩 OTP verification code sent to your email inbox!</span>
               </div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                Enter 6-Digit OTP Code
+                Enter 6-Digit Code Received in Email
               </label>
               <div className="relative">
                 <KeyRound className="absolute left-3.5 top-3.5 w-4 h-4 text-amber-400" />
@@ -188,7 +181,7 @@ export const AuthWrapper = () => {
                   type="text"
                   required
                   maxLength={6}
-                  placeholder="e.g. 739201"
+                  placeholder="Enter code from your email inbox..."
                   value={formData.otp}
                   onChange={(e) => setFormData({ ...formData, otp: e.target.value })}
                   className="w-full bg-slate-900/90 border border-amber-500/60 rounded-xl py-3 pl-10 pr-4 text-sm font-mono text-amber-300 tracking-widest text-center placeholder-slate-600 focus:outline-none focus:border-amber-400"

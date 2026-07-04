@@ -32,10 +32,10 @@ export const useAuth = () => {
         dispatch(setAuthLoading(false));
         dispatch(addToast({
           type: 'warning',
-          title: `📩 OTP Code Sent to ${email}`,
-          message: `Your verification code is: ${res.data.demoOtp}`
+          title: `📩 OTP Code Sent!`,
+          message: `Verification code sent to ${email}. Please check your email inbox.`
         }));
-        return { success: true, demoOtp: res.data.demoOtp };
+        return { success: true };
       }
     } catch (err) {
       const errMsg = err.response?.data?.message || 'Failed to send OTP.';
