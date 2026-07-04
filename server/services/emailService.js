@@ -6,9 +6,11 @@ let testTransporter = null;
 const sendOtpEmail = async (toEmail, otpCode) => {
   require('dotenv').config();
 
-  const resendApiKey = process.env.RESEND_API_KEY;
+  const emailHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const emailPort = parseInt(process.env.SMTP_PORT || '587', 10);
   const emailUser = process.env.SMTP_USER || process.env.EMAIL_USER;
   const emailPass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+  const resendApiKey = process.env.RESEND_API_KEY;
 
   const htmlContent = `
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; background-color: #0f172a; border-radius: 16px; color: #f8fafc;">
@@ -38,7 +40,34 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     </div>
   `;
 
-  // 1. Try Resend API first
+  // 1. Primary: Use Brevo/Custom SMTP if configured
+  if (emailUser && emailPass) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: emailHost,
+        port: emailPort,
+        secure: emailPort === 465,
+        auth: { user: emailUser, pass: emailPass }
+      });
+
+      // Use Brevo authorized sender format
+      const senderFrom = '"ConnectHub Security" <shahriarsakib1205@gmail.com>';
+
+      await transporter.sendMail({
+        from: senderFrom,
+        to: toEmail,
+        subject: `🔐 Your ConnectHub Verification Code: ${otpCode}`,
+        html: htmlContent
+      });
+
+      console.log(`✅ [Brevo/SMTP] Verification OTP delivered to ${toEmail}`);
+      return true;
+    } catch (err) {
+      console.error('❌ SMTP Delivery Error:', err.message);
+    }
+  }
+
+  // 2. Secondary: Resend API
   if (resendApiKey) {
     try {
       const resend = new Resend(resendApiKey);
@@ -50,36 +79,11 @@ const sendOtpEmail = async (toEmail, otpCode) => {
       });
 
       if (!error && data?.id) {
-        console.log(`✅ [Resend API - Privacy Protected] OTP email sent to ${toEmail} (ID: ${data.id})`);
+        console.log(`✅ [Resend API] Verification OTP email dispatched to ${toEmail} (ID: ${data.id})`);
         return true;
-      } else if (error) {
-        console.warn(`⚠️ Resend Free Tier Limit: Cannot send to external recipient ${toEmail} without custom domain in Resend. Attempting SMTP delivery...`);
       }
     } catch (err) {
       console.error('❌ Resend API Exception:', err.message);
-    }
-  }
-
-  // 2. Fallback to Gmail SMTP if set (Delivers to ANY email address like blackmen427@gmail.com)
-  if (emailUser && emailPass) {
-    try {
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST || 'smtp.gmail.com',
-        port: parseInt(process.env.SMTP_PORT || '587', 10),
-        secure: process.env.SMTP_SECURE === 'true',
-        auth: { user: emailUser, pass: emailPass }
-      });
-
-      await transporter.sendMail({
-        from: `"ConnectHub Verification" <${emailUser}>`,
-        to: toEmail,
-        subject: `🔐 Your ConnectHub Verification Code: ${otpCode}`,
-        html: htmlContent
-      });
-      console.log(`✅ [Gmail/SMTP Direct] Verification OTP delivered to ${toEmail}`);
-      return true;
-    } catch (err) {
-      console.error('❌ SMTP Delivery Error:', err.message);
     }
   }
 
