@@ -40,7 +40,7 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     </div>
   `;
 
-  // 1. Primary: Use Brevo/Custom SMTP if configured (hides developer email & uses no-reply brevosend address)
+  // 1. Primary: Brevo/Custom SMTP (Delivers to ALL recipients worldwide)
   if (emailUser && emailPass) {
     try {
       const transporter = nodemailer.createTransport({
@@ -50,12 +50,8 @@ const sendOtpEmail = async (toEmail, otpCode) => {
         auth: { user: emailUser, pass: emailPass }
       });
 
-      const senderFrom = emailHost.includes('brevo')
-        ? '"ConnectHub Security" <no-reply@11591997.brevosend.com>'
-        : `"ConnectHub Security" <${emailUser}>`;
-
       await transporter.sendMail({
-        from: senderFrom,
+        from: '"ConnectHub Security" <shahriarsakib1205@gmail.com>',
         replyTo: '"ConnectHub Security" <no-reply@connecthub.com>',
         to: toEmail,
         subject: `🔐 Your ConnectHub Verification Code: ${otpCode}`,
