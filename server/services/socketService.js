@@ -58,7 +58,7 @@ function initSocketService(io) {
       }
     });
 
-    // 2. 'send_message' event
+    // 2. 'send_message' event - Guaranteed multi-room real-time dispatch
     socket.on('send_message', async (data) => {
       try {
         const { conversationId, text, messageType = 'text', mediaUrl = '', fileName = '', fileSize = 0 } = data;
@@ -101,8 +101,11 @@ function initSocketService(io) {
           } : { userId, username: 'User' }
         };
 
-        // Emit receive_message to all participants in room
+        // Emit receive_message to conversation room AND each participant's personal user room
         io.to(conversationId).emit('receive_message', payload);
+        conversation.participants.forEach((pId) => {
+          io.to(pId).emit('receive_message', payload);
+        });
       } catch (err) {
         console.error('Socket send_message error:', err);
       }

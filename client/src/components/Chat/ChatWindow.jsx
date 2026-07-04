@@ -8,7 +8,8 @@ import {
   CheckCheck,
   X,
   MessageSquare,
-  Sparkles
+  Sparkles,
+  Volume2
 } from 'lucide-react';
 import { useConversation } from '../../hooks/useConversation';
 import { setActiveModal } from '../../store/slices/uiSlice';
@@ -45,10 +46,12 @@ export const ChatWindow = () => {
   const currentTypingUsers = typingUsers[activeConversationId] || [];
   const isOthersTyping = currentTypingUsers.filter((id) => id !== user?.userId).length > 0;
 
+  // Auto-scroll to latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [convMessages, isOthersTyping]);
 
+  // Mark unread messages as read
   useEffect(() => {
     if (activeConversationId && convMessages.length > 0) {
       const unreadMsgs = convMessages.filter(
@@ -58,7 +61,7 @@ export const ChatWindow = () => {
         markMessageAsRead(m.messageId, activeConversationId);
       });
     }
-  }, [activeConversationId, convMessages.length, markMessageAsRead, user?.userId]);
+  }, [activeConversationId, convMessages, markMessageAsRead, user?.userId]);
 
   const handleReact = async (messageId, emoji) => {
     try {
@@ -187,6 +190,7 @@ export const ChatWindow = () => {
             const isHovered = hoveredMsgId === msg.messageId;
 
             const isSeen = msg.status === 'read';
+            const isAudio = msg.messageType === 'audio' || (msg.mediaUrl && (msg.mediaUrl.startsWith('data:audio') || msg.mediaUrl.match(/\.(webm|mp3|wav|ogg|m4a)$/i)));
 
             return (
               <div
@@ -228,8 +232,24 @@ export const ChatWindow = () => {
                         : 'bg-slate-900 border border-slate-800 text-slate-100 rounded-bl-none'
                     }`}
                   >
-                    {/* Media attachments */}
-                    {msg.mediaUrl && (
+                    {/* Audio Voice Note Player */}
+                    {isAudio && (
+                      <div className="mb-2 p-2 bg-slate-950/80 rounded-xl border border-slate-800/80">
+                        <div className="flex items-center gap-2 text-xs font-semibold text-amber-400 mb-1.5">
+                          <Volume2 className="w-4 h-4" />
+                          <span>Voice Note</span>
+                        </div>
+                        <audio
+                          src={msg.mediaUrl}
+                          controls
+                          preload="metadata"
+                          className="w-full max-w-xs h-10 rounded-lg accent-blue-500"
+                        />
+                      </div>
+                    )}
+
+                    {/* Image or File Attachments */}
+                    {msg.mediaUrl && !isAudio && (
                       <div className="mb-2 rounded-xl overflow-hidden">
                         {msg.messageType === 'image' || msg.mediaUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
                           <img src={msg.mediaUrl} alt="Attachment" className="max-h-60 rounded-xl object-cover" />
@@ -246,7 +266,7 @@ export const ChatWindow = () => {
                       </div>
                     )}
 
-                    <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                    {!isAudio && <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>}
 
                     {/* Reactions Display Badges */}
                     {msg.reactions && msg.reactions.length > 0 && (
@@ -262,11 +282,7 @@ export const ChatWindow = () => {
                       </div>
                     )}
 
-                    {/* Timestamp & Status Icon logic:
-                        - Receiver offline ➔ 1 tick (✓)
-                        - Receiver online ➔ 2 ticks (✓✓)
-                        - Seen/Read ➔ Small circle avatar displayed at bottom-right corner
-                    */}
+                    {/* Timestamp & Status Icon logic */}
                     <div className={`flex items-center justify-end gap-1.5 text-[10px] mt-1.5 ${isMe ? 'text-blue-200' : 'text-slate-400'}`}>
                       <span>{format(new Date(msg.createdAt || Date.now()), 'HH:mm')}</span>
                       {isMe && (

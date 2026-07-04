@@ -29,23 +29,30 @@ const conversationSlice = createSlice({
     addMessage: (state, action) => {
       const msg = action.payload;
       const convId = msg.conversationId;
+
       if (!state.messages[convId]) {
         state.messages[convId] = [];
       }
-      // Avoid duplicates
+
+      // Avoid duplicate messages
       const exists = state.messages[convId].some(m => m.messageId === msg.messageId);
       if (!exists) {
         state.messages[convId].push(msg);
       }
 
-      // Update conversation lastMessage & updatedAt
-      const conv = state.conversations.find(c => c.conversationId === convId);
-      if (conv) {
-        conv.lastMessage = msg;
-        conv.updatedAt = msg.createdAt || new Date().toISOString();
-        if (state.activeConversationId !== convId) {
-          conv.unreadCount = (conv.unreadCount || 0) + 1;
+      // Update & bump conversation in sidebar list to top
+      const convIdx = state.conversations.findIndex(c => c.conversationId === convId);
+      if (convIdx !== -1) {
+        const targetConv = { ...state.conversations[convIdx] };
+        targetConv.lastMessage = msg;
+        targetConv.updatedAt = msg.createdAt || new Date().toISOString();
+        if (state.activeConversationId !== convId && msg.senderId !== targetConv.currentUserId) {
+          targetConv.unreadCount = (targetConv.unreadCount || 0) + 1;
         }
+
+        // Remove from current position and move to top (index 0)
+        state.conversations.splice(convIdx, 1);
+        state.conversations.unshift(targetConv);
       }
     },
     removeMessage: (state, action) => {
