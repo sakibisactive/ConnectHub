@@ -4,12 +4,11 @@ const { Resend } = require('resend');
 let testTransporter = null;
 
 const sendOtpEmail = async (toEmail, otpCode) => {
-  // Ensure environment variables are dynamically refreshed
   require('dotenv').config();
 
+  const resendApiKey = process.env.RESEND_API_KEY;
   const emailUser = process.env.SMTP_USER || process.env.EMAIL_USER;
   const emailPass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
-  const resendApiKey = process.env.RESEND_API_KEY;
 
   const htmlContent = `
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; background-color: #0f172a; border-radius: 16px; color: #f8fafc;">
@@ -39,7 +38,29 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     </div>
   `;
 
-  // 1. Primary: Use Gmail SMTP (No recipient restriction! Delivers to ANY email address)
+  // 1. Primary: Use Resend API (Protects developer privacy! Sender shown is "ConnectHub Security <onboarding@resend.dev>")
+  if (resendApiKey) {
+    try {
+      const resend = new Resend(resendApiKey);
+      const { data, error } = await resend.emails.send({
+        from: 'ConnectHub Security <onboarding@resend.dev>',
+        to: [toEmail],
+        subject: `🔐 Your ConnectHub Verification Code: ${otpCode}`,
+        html: htmlContent
+      });
+
+      if (error) {
+        console.error('❌ Resend API Error:', error.message || error);
+      } else {
+        console.log(`✅ [Resend API - Privacy Protected] OTP email sent to ${toEmail} (ID: ${data?.id})`);
+        return true;
+      }
+    } catch (err) {
+      console.error('❌ Resend API Exception:', err.message);
+    }
+  }
+
+  // 2. Secondary: Gmail SMTP
   if (emailUser && emailPass) {
     try {
       const transporter = nodemailer.createTransport({
@@ -59,28 +80,6 @@ const sendOtpEmail = async (toEmail, otpCode) => {
       return true;
     } catch (err) {
       console.error('❌ SMTP Error:', err.message);
-    }
-  }
-
-  // 2. Secondary: Resend API
-  if (resendApiKey) {
-    try {
-      const resend = new Resend(resendApiKey);
-      const { data, error } = await resend.emails.send({
-        from: 'ConnectHub Security <onboarding@resend.dev>',
-        to: [toEmail],
-        subject: `🔐 Your ConnectHub Verification Code: ${otpCode}`,
-        html: htmlContent
-      });
-
-      if (error) {
-        console.error('❌ Resend API Error:', error.message || error);
-      } else {
-        console.log(`✅ [Resend API] Verification OTP email dispatched to ${toEmail} (ID: ${data?.id})`);
-        return true;
-      }
-    } catch (err) {
-      console.error('❌ Resend API Exception:', err.message);
     }
   }
 
