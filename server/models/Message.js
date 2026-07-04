@@ -52,6 +52,7 @@ const messageSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now,
+    expires: 43200, // MongoDB TTL index: automatically deletes message after 12 hours (43,200 seconds)
     index: true
   },
   readAt: {

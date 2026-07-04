@@ -21,15 +21,16 @@ The database seeder pre-populates four test accounts. You can also click the qui
 
 ---
 
-## 🗄️ MongoDB Setup Instructions
+## 🗄️ MongoDB Setup & Permanent Connection URI
 
-```
-# MongoDB Atlas Connection URI Space
-MONGO_URI=mongodb+srv://shahriarsakib1205_db_user:oSjwNqTC25MiSj4p@cluster0.4bvn9ac.mongodb.net/connecthub?retryWrites=true&w=majority&appName=Cluster0
+```env
+PORT=5000
+NODE_ENV=development
+MONGO_URI=mongodb+srv://shahriarsakib1205_db_user:oSjwNqTC25MiSj4p@cluster0.kfonus1.mongodb.net/connecthub?retryWrites=true&w=majority&appName=Cluster0
 ```
 
 ### How to Populate Database:
-Once your MongoDB Atlas cluster network access is active, run the seeder script from your terminal:
+Run the seeder script anytime from your terminal:
 ```bash
 # Populate MongoDB Atlas with 4 test users, conversations, and message history
 npm run seed
@@ -37,54 +38,29 @@ npm run seed
 
 ---
 
-## 📱 Website & Feature Summary
+## 📱 Feature Summary
 
-### 1. **Authentication & Security**
-- **Tabbed Login & Registration Page**: The default landing screen for unauthenticated users.
-- **Security**: Passwords hashed using `bcryptjs` with salt rounds of 10. HTTP-only JWT cookies set with `sameSite=strict`.
-- **Input Sanitization & Rate Limiting**: Max 300 requests per 15 minutes via `express-rate-limit`.
+### 1. **12-Hour Automatic Message Expiry**
+- All messages feature a MongoDB TTL Index (`expires: 43200`) and backend filter.
+- Messages are automatically purged 12 hours after being sent.
 
-### 2. **Real-Time WebSocket Messaging (Socket.IO)**
-- **Instant Delivery**: Sub-millisecond message delivery across active room channels.
+### 2. **Email OTP Verification & 1 Account per Email**
+- **Strict 1 Account per Email**: Validates email uniqueness before sending OTP. Notifies users immediately if the email is already registered.
+- **6-Digit Email OTP**: Registration requires entering a 6-digit OTP verification code.
+
+### 3. **Search Users by Email Address**
+- User search bar accepts full or partial email addresses (e.g. `sarah@connecthub.com`) or usernames.
+
+### 4. **Updated Receipt Icons & Seen Circle Badge**
+- **Receiver Offline**: 1 tick (✓)
+- **Receiver Online**: 2 ticks (✓✓)
+- **Message Seen / Read**: Small avatar circle badge displayed at the bottom-right corner of the message bubble!
+
+### 5. **Real-Time WebSocket Messaging (Socket.IO)**
 - **Typing Indicators**: Real-time debounced typing feedback ("*User is typing...*").
-- **Presence Tracking**: Live online / away / offline indicators broadcast with network fluctuation debouncing (5-second recovery window).
-- **Read Receipts**: Single checkmark (✓ Sent), double checkmark (✓✓ Delivered), and blue double checkmark (✓✓ Read).
+- **Presence Tracking**: Live online / away / offline status indicators.
 - **5-Second Undo Send**: 4-second banner allowing users to cancel a message before dispatch.
-- **Emoji Reactions**: Popover on hover to react to messages with 👍, ❤️, 😂, 😮, 😢, 🔥.
-
-### 3. **Redis Multi-Layer Caching Strategy**
-- **Conversation List Cache**: `conversations:${userId}` (10s TTL).
-- **User Status Cache**: `user:status:${userId}` (15s TTL).
-- **Message History Cache**: `messages:${conversationId}:${page}` (60s TTL).
-- **Socket Map Storage**: `userSocketMap` tracked in Redis with memory fallback for 100% standalone availability.
-
-### 4. **Instructor & Admin Master Portal**
-- Accessible via master password (`connecthub_admin_2026`).
-- Real-time analytics: Active online users, total messages sent today, average response time.
-- System-Wide Broadcasts: Emit instant banner notifications to all connected WebSocket clients.
-- Audit Log Export: One-click CSV export of chat history.
-
-### 5. **PWA & Audio Features**
-- Web Audio API sound synthesizer for gentle incoming message chimes.
-- PWA Service Worker (`sw.js`) and Web Manifest (`manifest.json`).
-
----
-
-## 🚀 Deployment Guide
-
-### Backend Deployment (Render / Railway)
-1. Environment Variables required:
-   - `PORT=5000`
-   - `MONGO_URI`
-   - `REDIS_URL`
-   - `JWT_SECRET`
-   - `CORS_ORIGIN` (Your Vercel frontend domain)
-2. Deploy as a persistent Web Service.
-
-### Frontend Deployment (Vercel)
-1. Connect GitHub repository `https://github.com/sakibisactive/ConnectHub.git`.
-2. Framework Preset: **Vite**.
-3. Build Command: `npm run build` inside `client/`.
+- **Emoji Reactions**: React to messages with 👍, ❤️, 😂, 😮, 😢, 🔥.
 
 ---
 
@@ -92,14 +68,15 @@ npm run seed
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `POST` | `/api/auth/register` | Register new user, hash password, set JWT cookie |
+| `POST` | `/api/auth/send-otp` | Validate 1 account per email rule & send 6-digit OTP |
+| `POST` | `/api/auth/register` | Verify OTP code & complete account registration |
 | `POST` | `/api/auth/login` | Validate credentials, issue JWT cookie |
 | `POST` | `/api/auth/logout` | Clear cookie, update user status to offline |
-| `GET` | `/api/users` | List registered users with search filter |
+| `GET` | `/api/users` | Search registered users by email address or username |
 | `GET` | `/api/users/:userId/status` | Get online status and lastSeen |
 | `GET` | `/api/conversations` | List user conversations with last message & unread count |
 | `POST` | `/api/conversations` | Create new 1-on-1 or group conversation |
-| `GET` | `/api/conversations/:id/messages` | Fetch paginated chat history |
+| `GET` | `/api/conversations/:id/messages` | Fetch paginated chat history (max 12h age) |
 | `POST` | `/api/conversations/:id/messages` | Send message & emit Socket.IO event |
 | `PUT` | `/api/messages/:id/read` | Mark message as read & send receipt |
 | `POST` | `/api/admin/verify` | Authenticate instructor master password |

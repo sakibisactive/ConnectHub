@@ -5,6 +5,7 @@ const Message = require('../models/Message');
 const memoryStore = require('../config/inMemoryDb');
 
 const isMongoConnected = () => mongoose.connection.readyState === 1;
+const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 
 const dbDataService = {
   isMongoConnected,
@@ -12,10 +13,17 @@ const dbDataService = {
   // USER OPERATIONS
   async findUser(query) {
     if (isMongoConnected()) {
-      return await User.findOne(query);
+      return await User.findOne(query).lean();
     }
-    const key = Object.keys(query)[0];
-    const val = query[key];
+    if (query.userId) {
+      return memoryStore.users.find(u => u.userId === query.userId) || null;
+    }
+    if (query.email) {
+      return memoryStore.users.find(u => u.email?.toLowerCase() === query.email?.toLowerCase()) || null;
+    }
+    if (query.username) {
+      return memoryStore.users.find(u => u.username?.toLowerCase() === query.username?.toLowerCase()) || null;
+    }
     if (query.$or) {
       return memoryStore.users.find(u =>
         query.$or.some(cond => {
@@ -24,7 +32,7 @@ const dbDataService = {
         })
       ) || null;
     }
-    return memoryStore.users.find(u => u[key]?.toLowerCase() === val?.toLowerCase()) || null;
+    return null;
   },
 
   async createUser(userData) {
@@ -35,16 +43,23 @@ const dbDataService = {
     return userData;
   },
 
+  // Search by username OR email address
   async getUsers(searchQuery, currentUserId) {
     if (isMongoConnected()) {
       let q = {};
       if (currentUserId) q.userId = { $ne: currentUserId };
-      if (searchQuery) q.username = { $regex: searchQuery, $options: 'i' };
+      if (searchQuery) {
+        q.$or = [
+          { username: { $regex: searchQuery, $options: 'i' } },
+          { email: { $regex: searchQuery, $options: 'i' } }
+        ];
+      }
       return await User.find(q).select('-passwordHash').lean();
     }
+    const q = searchQuery ? searchQuery.toLowerCase() : '';
     return memoryStore.users
       .filter(u => u.userId !== currentUserId)
-      .filter(u => !searchQuery || u.username.toLowerCase().includes(searchQuery.toLowerCase()))
+      .filter(u => !q || u.username.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
       .map(({ passwordHash, ...rest }) => rest);
   },
 
@@ -68,7 +83,7 @@ const dbDataService = {
 
   async findConversation(query) {
     if (isMongoConnected()) {
-      return await Conversation.findOne(query);
+      return await Conversation.findOne(query).lean();
     }
     if (query.conversationId) {
       return memoryStore.conversations.find(c => c.conversationId === query.conversationId) || null;
@@ -84,10 +99,15 @@ const dbDataService = {
     return null;
   },
 
-  // MESSAGE OPERATIONS
+  // MESSAGE OPERATIONS (Enforces 12-Hour Message Deletion Window)
   async getMessages(conversationId, skip = 0, limit = 50) {
+    const twelveHoursAgo = new Date(Date.now() - TWELVE_HOURS_MS);
+
     if (isMongoConnected()) {
-      const msgs = await Message.find({ conversationId })
+      const msgs = await Message.find({
+        conversationId,
+        createdAt: { $gte: twelveHoursAgo }
+      })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -95,7 +115,7 @@ const dbDataService = {
       return msgs.reverse();
     }
     const msgs = memoryStore.messages
-      .filter(m => m.conversationId === conversationId)
+      .filter(m => m.conversationId === conversationId && new Date(m.createdAt) >= twelveHoursAgo)
       .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
     return msgs.slice(skip, skip + limit);
   },
@@ -105,32 +125,42 @@ const dbDataService = {
       return await Message.create(msgData);
     }
     memoryStore.messages.push(msgData);
-    // update conv updatedAt
     const conv = memoryStore.conversations.find(c => c.conversationId === msgData.conversationId);
     if (conv) conv.updatedAt = new Date();
     return msgData;
   },
 
   async getLastMessage(conversationId) {
+    const twelveHoursAgo = new Date(Date.now() - TWELVE_HOURS_MS);
+
     if (isMongoConnected()) {
-      return await Message.findOne({ conversationId }).sort({ createdAt: -1 }).lean();
+      return await Message.findOne({
+        conversationId,
+        createdAt: { $gte: twelveHoursAgo }
+      }).sort({ createdAt: -1 }).lean();
     }
     const msgs = memoryStore.messages
-      .filter(m => m.conversationId === conversationId)
+      .filter(m => m.conversationId === conversationId && new Date(m.createdAt) >= twelveHoursAgo)
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     return msgs[0] || null;
   },
 
   async getUnreadCount(conversationId, userId) {
+    const twelveHoursAgo = new Date(Date.now() - TWELVE_HOURS_MS);
+
     if (isMongoConnected()) {
       return await Message.countDocuments({
         conversationId,
         senderId: { $ne: userId },
-        status: { $ne: 'read' }
+        status: { $ne: 'read' },
+        createdAt: { $gte: twelveHoursAgo }
       });
     }
     return memoryStore.messages.filter(
-      m => m.conversationId === conversationId && m.senderId !== userId && m.status !== 'read'
+      m => m.conversationId === conversationId &&
+           m.senderId !== userId &&
+           m.status !== 'read' &&
+           new Date(m.createdAt) >= twelveHoursAgo
     ).length;
   }
 };

@@ -6,11 +6,9 @@ import {
   Info,
   Check,
   CheckCheck,
-  Smile,
   X,
   MessageSquare,
-  Sparkles,
-  ChevronDown
+  Sparkles
 } from 'lucide-react';
 import { useConversation } from '../../hooks/useConversation';
 import { setActiveModal } from '../../store/slices/uiSlice';
@@ -42,17 +40,15 @@ export const ChatWindow = () => {
     : (otherUser?.profilePicture || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb');
 
   const userPresence = otherUser ? (onlineUsers[otherUser.userId] || { status: otherUser.status }) : null;
-  const isOnline = userPresence?.status === 'online';
+  const isRecipientOnline = userPresence?.status === 'online';
 
   const currentTypingUsers = typingUsers[activeConversationId] || [];
   const isOthersTyping = currentTypingUsers.filter((id) => id !== user?.userId).length > 0;
 
-  // Auto scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [convMessages, isOthersTyping]);
 
-  // Mark latest unread messages as read
   useEffect(() => {
     if (activeConversationId && convMessages.length > 0) {
       const unreadMsgs = convMessages.filter(
@@ -80,13 +76,12 @@ export const ChatWindow = () => {
         </div>
         <h3 className="text-xl font-bold text-white mb-2">Welcome to ConnectHub</h3>
         <p className="text-slate-400 text-sm max-w-sm">
-          Select a contact or group from the sidebar to launch real-time WebSocket messaging.
+          Select a contact or group from the sidebar to launch real-time WebSocket messaging with 12h self-deleting chat history.
         </p>
       </div>
     );
   }
 
-  // Filter messages if search in chat query is present
   const filteredMessages = convMessages.filter((m) => {
     if (!searchInChatQuery) return true;
     return (m.text || '').toLowerCase().includes(searchInChatQuery.toLowerCase());
@@ -106,7 +101,7 @@ export const ChatWindow = () => {
             {!isGroup && (
               <div
                 className={`absolute bottom-0 right-0 w-3 h-3 rounded-full ring-2 ring-slate-900 ${
-                  isOnline ? 'bg-emerald-500' : 'bg-slate-500'
+                  isRecipientOnline ? 'bg-emerald-500' : 'bg-slate-500'
                 }`}
               />
             )}
@@ -126,9 +121,9 @@ export const ChatWindow = () => {
                   <Sparkles className="w-3 h-3" /> User is typing...
                 </span>
               ) : isGroup ? (
-                <span>Group Chat</span>
+                <span>Group Chat • 12H Auto-Purge</span>
               ) : (
-                <span>{isOnline ? 'Online' : 'Offline'}</span>
+                <span>{isRecipientOnline ? 'Online' : 'Offline'} • 12H Auto-Purge</span>
               )}
             </div>
           </div>
@@ -183,13 +178,15 @@ export const ChatWindow = () => {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {filteredMessages.length === 0 ? (
           <div className="text-center py-16 text-slate-500 text-xs">
-            No messages found. Send a message to start the conversation!
+            No messages found. Messages auto-delete after 12 hours.
           </div>
         ) : (
           filteredMessages.map((msg, idx) => {
             const isMe = msg.senderId === user?.userId;
             const senderDetail = isGroup ? currentConv.participantDetails?.find((p) => p.userId === msg.senderId) : null;
             const isHovered = hoveredMsgId === msg.messageId;
+
+            const isSeen = msg.status === 'read';
 
             return (
               <div
@@ -198,7 +195,6 @@ export const ChatWindow = () => {
                 onMouseLeave={() => setHoveredMsgId(null)}
                 className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group relative`}
               >
-                {/* Sender Name in Group */}
                 {isGroup && !isMe && (
                   <span className="text-[10px] text-slate-400 mb-1 font-medium ml-1">
                     {senderDetail?.username || 'Member'}
@@ -266,17 +262,27 @@ export const ChatWindow = () => {
                       </div>
                     )}
 
-                    {/* Timestamp & Status Icon */}
-                    <div className={`flex items-center justify-end gap-1 text-[10px] mt-1.5 ${isMe ? 'text-blue-200' : 'text-slate-400'}`}>
+                    {/* Timestamp & Status Icon logic:
+                        - Receiver offline ➔ 1 tick (✓)
+                        - Receiver online ➔ 2 ticks (✓✓)
+                        - Seen/Read ➔ Small circle avatar displayed at bottom-right corner
+                    */}
+                    <div className={`flex items-center justify-end gap-1.5 text-[10px] mt-1.5 ${isMe ? 'text-blue-200' : 'text-slate-400'}`}>
                       <span>{format(new Date(msg.createdAt || Date.now()), 'HH:mm')}</span>
                       {isMe && (
                         <span>
-                          {msg.status === 'read' ? (
-                            <CheckCheck className="w-3.5 h-3.5 text-sky-300" title="Read (Blue Double Check)" />
-                          ) : msg.status === 'delivered' ? (
-                            <CheckCheck className="w-3.5 h-3.5 text-blue-200" title="Delivered" />
+                          {isSeen ? (
+                            <div className="relative inline-block" title="Seen (Small Circle Badge)">
+                              <img
+                                src={displayAvatar}
+                                alt="Seen"
+                                className="w-3.5 h-3.5 rounded-full object-cover ring-1 ring-white/80 inline"
+                              />
+                            </div>
+                          ) : isRecipientOnline ? (
+                            <CheckCheck className="w-3.5 h-3.5 text-blue-200" title="Online (2 Ticks)" />
                           ) : (
-                            <Check className="w-3.5 h-3.5 text-blue-200" title="Sent" />
+                            <Check className="w-3.5 h-3.5 text-blue-200" title="Offline (1 Tick)" />
                           )}
                         </span>
                       )}

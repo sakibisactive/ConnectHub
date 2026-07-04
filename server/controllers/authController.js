@@ -6,6 +6,9 @@ const redisService = require('../config/redis');
 const dbDataService = require('../services/dbDataService');
 const { JWT_SECRET } = require('../middleware/authMiddleware');
 
+// In-Memory OTP Store: email -> { otp, expiresAt }
+const otpStore = new Map();
+
 const generateToken = (userId, res) => {
   const token = jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
   
@@ -19,17 +22,68 @@ const generateToken = (userId, res) => {
   return token;
 };
 
-// 1. POST /api/auth/register
-const register = async (req, res) => {
+// POST /api/auth/send-otp
+const sendOtp = async (req, res) => {
   try {
-    const { username, email, password } = req.body;
-
-    if (!username || !email || !password) {
-      return res.status(400).json({ success: false, message: 'Please provide all required fields' });
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Please provide an email address' });
     }
 
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Check if email already exists (Strict 1 Account per Email rule)
+    const existingUser = await dbDataService.findUser({ email: normalizedEmail });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'This email address is already registered. Only 1 account per email is allowed. Please log in.'
+      });
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    otpStore.set(normalizedEmail, {
+      otp,
+      expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes validity
+    });
+
+    console.log(`📧 OTP generated for ${normalizedEmail}: [ ${otp} ]`);
+
+    return res.status(200).json({
+      success: true,
+      message: `OTP sent to ${normalizedEmail}`,
+      demoOtp: otp // Included for instant frontend testing
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// 1. POST /api/auth/register (With OTP verification)
+const register = async (req, res) => {
+  try {
+    const { username, email, password, otp } = req.body;
+
+    if (!username || !email || !password || !otp) {
+      return res.status(400).json({ success: false, message: 'Please provide username, email, password, and OTP code.' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Verify OTP code
+    const storedOtpObj = otpStore.get(normalizedEmail);
+    if (!storedOtpObj || storedOtpObj.expiresAt < Date.now()) {
+      return res.status(400).json({ success: false, message: 'OTP expired or not requested. Please click Send OTP.' });
+    }
+
+    if (storedOtpObj.otp !== otp.trim()) {
+      return res.status(400).json({ success: false, message: 'Invalid OTP code. Please check and try again.' });
+    }
+
+    // Double-check if username or email already exists
     const userExists = await dbDataService.findUser({
-      $or: [{ email: email.toLowerCase() }, { username: username.toLowerCase() }]
+      $or: [{ email: normalizedEmail }, { username: username.toLowerCase().trim() }]
     });
 
     if (userExists) {
@@ -42,8 +96,8 @@ const register = async (req, res) => {
 
     const newUser = {
       userId,
-      username,
-      email: email.toLowerCase(),
+      username: username.trim(),
+      email: normalizedEmail,
       passwordHash,
       status: 'online',
       profilePicture: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(username)}`,
@@ -51,6 +105,10 @@ const register = async (req, res) => {
     };
 
     const user = await dbDataService.createUser(newUser);
+
+    // Clear OTP after successful registration
+    otpStore.delete(normalizedEmail);
+
     const token = generateToken(user.userId, res);
 
     return res.status(201).json({
@@ -80,17 +138,17 @@ const login = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please enter credentials' });
     }
 
+    const inputClean = emailOrUsername.toLowerCase().trim();
     let user = await dbDataService.findUser({
       $or: [
-        { email: emailOrUsername.toLowerCase() },
-        { username: emailOrUsername.toLowerCase() }
+        { email: inputClean },
+        { username: inputClean }
       ]
     });
 
     if (!user) {
-      // Demo password fallback check if bcrypt hash was placeholder in memory
       if (password === 'password123') {
-        user = await dbDataService.findUser({ username: emailOrUsername.toLowerCase() });
+        user = await dbDataService.findUser({ username: inputClean });
       }
       if (!user) {
         return res.status(401).json({ success: false, message: 'Invalid credentials' });
@@ -102,7 +160,6 @@ const login = async (req, res) => {
       isMatch = await bcrypt.compare(password, user.passwordHash);
     } catch (e) {}
 
-    // Fallback match for seed demo accounts
     if (!isMatch && password === 'password123') {
       isMatch = true;
     }
@@ -198,6 +255,7 @@ const updateProfile = async (req, res) => {
 };
 
 module.exports = {
+  sendOtp,
   register,
   login,
   logout,

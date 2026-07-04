@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Search, X, UserPlus, MessageSquare } from 'lucide-react';
+import { Search, X, UserPlus, MessageSquare, Mail } from 'lucide-react';
 import { setActiveModal } from '../../store/slices/uiSlice';
 import { useConversation } from '../../hooks/useConversation';
 import api from '../../utils/api';
@@ -57,7 +57,7 @@ export const UserSearchModal = () => {
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div className="flex items-center gap-2">
             <UserPlus className="w-5 h-5 text-blue-400" />
-            <h3 className="text-base font-bold text-white">Start New Conversation</h3>
+            <h3 className="text-base font-bold text-white">Find People</h3>
           </div>
           <button onClick={() => dispatch(setActiveModal(null))} className="p-1 text-slate-400 hover:text-white">
             <X className="w-5 h-5" />
@@ -68,7 +68,7 @@ export const UserSearchModal = () => {
           <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-500" />
           <input
             type="text"
-            placeholder="Search username (e.g. sarah_design)..."
+            placeholder="Search by email address or username (e.g. sarah@connecthub.com)..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500"
@@ -93,8 +93,10 @@ export const UserSearchModal = () => {
                     className="w-10 h-10 rounded-full object-cover"
                   />
                   <div>
-                    <h4 className="text-sm font-semibold text-slate-200">{u.username}</h4>
-                    <p className="text-xs text-slate-400">{u.email}</p>
+                    <h4 className="text-sm font-semibold text-slate-200">@{u.username}</h4>
+                    <p className="text-xs text-blue-400 flex items-center gap-1">
+                      <Mail className="w-3 h-3" /> {u.email}
+                    </p>
                   </div>
                 </div>
                 <button
