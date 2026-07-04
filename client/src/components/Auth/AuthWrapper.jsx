@@ -40,10 +40,6 @@ export const AuthWrapper = () => {
     }
   };
 
-  const handleDemoLogin = (email, password) => {
-    loginUser(email, password);
-  };
-
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center relative overflow-hidden p-4">
       {/* Background Gradient Orbs */}
@@ -215,43 +211,6 @@ export const AuthWrapper = () => {
             )}
           </button>
         </form>
-
-        {/* Quick Demo Accounts Helper */}
-        <div className="mt-8 pt-6 border-t border-slate-800">
-          <p className="text-xs text-slate-400 font-medium mb-3 text-center">
-            🚀 Quick Demo Login Accounts (Click to test):
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => handleDemoLogin('alex@connecthub.com', 'password123')}
-              className="py-2 px-3 bg-slate-800/80 hover:bg-slate-700 text-xs font-medium text-slate-200 rounded-xl text-left border border-slate-700/50 transition-all flex items-center gap-2"
-            >
-              <div className="w-2 h-2 rounded-full bg-emerald-400" />
-              <span>Alex (Dev)</span>
-            </button>
-            <button
-              onClick={() => handleDemoLogin('sarah@connecthub.com', 'password123')}
-              className="py-2 px-3 bg-slate-800/80 hover:bg-slate-700 text-xs font-medium text-slate-200 rounded-xl text-left border border-slate-700/50 transition-all flex items-center gap-2"
-            >
-              <div className="w-2 h-2 rounded-full bg-emerald-400" />
-              <span>Sarah (Design)</span>
-            </button>
-            <button
-              onClick={() => handleDemoLogin('john@connecthub.com', 'password123')}
-              className="py-2 px-3 bg-slate-800/80 hover:bg-slate-700 text-xs font-medium text-slate-200 rounded-xl text-left border border-slate-700/50 transition-all flex items-center gap-2"
-            >
-              <div className="w-2 h-2 rounded-full bg-amber-400" />
-              <span>John (Admin)</span>
-            </button>
-            <button
-              onClick={() => handleDemoLogin('emily@connecthub.com', 'password123')}
-              className="py-2 px-3 bg-slate-800/80 hover:bg-slate-700 text-xs font-medium text-slate-200 rounded-xl text-left border border-slate-700/50 transition-all flex items-center gap-2"
-            >
-              <div className="w-2 h-2 rounded-full bg-slate-400" />
-              <span>Emily (Tech)</span>
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );
