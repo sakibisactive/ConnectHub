@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Search, X, UserPlus, MessageSquare, Mail } from 'lucide-react';
+import { Search, X, UserPlus, MessageSquare, Mail, ShieldAlert } from 'lucide-react';
 import { setActiveModal } from '../../store/slices/uiSlice';
 import { useConversation } from '../../hooks/useConversation';
 import api from '../../utils/api';
@@ -16,10 +16,16 @@ export const UserSearchModal = () => {
   useEffect(() => {
     if (activeModal !== 'userSearch') return;
 
+    if (!search || !search.trim()) {
+      setUsers([]);
+      setLoading(false);
+      return;
+    }
+
     const timer = setTimeout(async () => {
       try {
         setLoading(true);
-        const res = await api.get(`/users?search=${encodeURIComponent(search)}`);
+        const res = await api.get(`/users?search=${encodeURIComponent(search.trim())}`);
         if (res.data.success) {
           setUsers(res.data.users);
         }
@@ -68,7 +74,7 @@ export const UserSearchModal = () => {
           <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-500" />
           <input
             type="text"
-            placeholder="Search by email address or username (e.g. sarah@connecthub.com)..."
+            placeholder="Type exact username or email address to search..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500"
@@ -76,10 +82,18 @@ export const UserSearchModal = () => {
         </div>
 
         <div className="max-h-60 overflow-y-auto space-y-2">
-          {loading ? (
-            <div className="text-center py-6 text-xs text-slate-500">Searching contacts...</div>
+          {!search.trim() ? (
+            <div className="text-center py-8 text-xs text-slate-500 space-y-1">
+              <Search className="w-6 h-6 text-slate-600 mx-auto mb-1 opacity-60" />
+              <p className="font-semibold text-slate-400">Search by Username or Email</p>
+              <p className="text-[11px]">Users are hidden for privacy. Type a username or email above to find someone.</p>
+            </div>
+          ) : loading ? (
+            <div className="text-center py-6 text-xs text-slate-400 animate-pulse">Searching directory...</div>
           ) : users.length === 0 ? (
-            <div className="text-center py-6 text-xs text-slate-500">No users found</div>
+            <div className="text-center py-6 text-xs text-slate-500">
+              No matching user found for "{search}"
+            </div>
           ) : (
             users.map((u) => (
               <div

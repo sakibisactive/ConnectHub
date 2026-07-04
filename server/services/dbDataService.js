@@ -56,23 +56,26 @@ const dbDataService = {
     return true;
   },
 
-  // Search by username OR email address
+  // Search by username OR email address (Strict privacy: returns [] if searchQuery is empty)
   async getUsers(searchQuery, currentUserId) {
+    if (!searchQuery || !searchQuery.trim()) {
+      return [];
+    }
+    const qStr = searchQuery.trim();
     if (isMongoConnected()) {
-      let q = {};
-      if (currentUserId) q.userId = { $ne: currentUserId };
-      if (searchQuery) {
-        q.$or = [
-          { username: { $regex: searchQuery, $options: 'i' } },
-          { email: { $regex: searchQuery, $options: 'i' } }
-        ];
-      }
+      let q = {
+        userId: { $ne: currentUserId },
+        $or: [
+          { username: { $regex: qStr, $options: 'i' } },
+          { email: { $regex: qStr, $options: 'i' } }
+        ]
+      };
       return await User.find(q).select('-passwordHash').lean();
     }
-    const q = searchQuery ? searchQuery.toLowerCase() : '';
+    const q = qStr.toLowerCase();
     return memoryStore.users
       .filter(u => u.userId !== currentUserId)
-      .filter(u => !q || u.username.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
+      .filter(u => u.username.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
       .map(({ passwordHash, ...rest }) => rest);
   },
 

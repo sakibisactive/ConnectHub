@@ -1,13 +1,21 @@
 const dbDataService = require('../services/dbDataService');
 const redisService = require('../config/redis');
 
-// 4. GET /api/users
+// 4. GET /api/users (Strict Privacy: Returns results ONLY when search parameter is provided)
 const getUsers = async (req, res) => {
   try {
     const { search } = req.query;
     const currentUserId = req.user ? req.user.userId : null;
 
-    const users = await dbDataService.getUsers(search, currentUserId);
+    // Privacy Protection: If no search query is specified, do NOT list database users
+    if (!search || !search.trim()) {
+      return res.status(200).json({
+        success: true,
+        users: []
+      });
+    }
+
+    const users = await dbDataService.getUsers(search.trim(), currentUserId);
 
     return res.status(200).json({
       success: true,
