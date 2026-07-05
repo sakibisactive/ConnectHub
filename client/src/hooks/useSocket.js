@@ -43,9 +43,12 @@ export const useSocket = () => {
       console.log('⚡ Socket connected:', socket.id);
       dispatch(setSocketConnected(true));
 
-      // Join active conversation rooms
-      if (conversations.length > 0) {
-        const convIds = conversations.map(c => c.conversationId);
+      // Join active conversation rooms dynamically
+      const convIds = conversations.map(c => c.conversationId);
+      if (activeConversationId && !convIds.includes(activeConversationId)) {
+        convIds.push(activeConversationId);
+      }
+      if (convIds.length > 0) {
         socket.emit('join', { conversationIds: convIds });
       }
     });
@@ -59,7 +62,7 @@ export const useSocket = () => {
       dispatch(addMessage(msg));
       soundManager.playMessageSound();
 
-      if (msg.senderId !== user.userId) {
+      if (msg.senderId !== user?.userId) {
         dispatch(addToast({
           type: 'info',
           title: `New message from ${msg.sender?.username || 'contact'}`,
@@ -69,13 +72,13 @@ export const useSocket = () => {
     });
 
     socket.on('user_typing', (data) => {
-      if (data.userId !== user.userId) {
+      if (data.userId !== user?.userId) {
         dispatch(setUserTyping(data));
       }
     });
 
     socket.on('user_stop_typing', (data) => {
-      if (data.userId !== user.userId) {
+      if (data.userId !== user?.userId) {
         dispatch(setUserStopTyping(data));
       }
     });
@@ -124,6 +127,17 @@ export const useSocket = () => {
       socketInstance = null;
     };
   }, [isAuthenticated, user?.userId]);
+
+  // Dynamically join rooms whenever conversations list or activeConversationId changes
+  useEffect(() => {
+    if (socketInstance && socketInstance.connected && conversations.length > 0) {
+      const convIds = conversations.map(c => c.conversationId);
+      if (activeConversationId && !convIds.includes(activeConversationId)) {
+        convIds.push(activeConversationId);
+      }
+      socketInstance.emit('join', { conversationIds: convIds });
+    }
+  }, [conversations, activeConversationId]);
 
   return socketRef.current;
 };

@@ -78,14 +78,20 @@ const createMessage = async (req, res) => {
 
     const io = req.app.get('io');
     if (io) {
-      io.to(conversationId).emit('receive_message', {
+      const payload = {
         ...newMsg,
         sender: {
           userId: req.user.userId,
           username: req.user.username,
           profilePicture: req.user.profilePicture
         }
-      });
+      };
+      io.to(conversationId).emit('receive_message', payload);
+      if (conversation && Array.isArray(conversation.participants)) {
+        conversation.participants.forEach((pId) => {
+          io.to(pId.toString()).emit('receive_message', payload);
+        });
+      }
     }
 
     return res.status(201).json({

@@ -53,6 +53,19 @@ const conversationSlice = createSlice({
         // Remove from current position and move to top (index 0)
         state.conversations.splice(convIdx, 1);
         state.conversations.unshift(targetConv);
+      } else {
+        // Conversation not found in sidebar state (e.g. brand new conversation started by someone)
+        const senderDetail = msg.sender || { userId: msg.senderId, username: 'Contact' };
+        const newConv = {
+          conversationId: convId,
+          type: msg.conversationType || 'individual',
+          participants: [msg.senderId],
+          participantDetails: [senderDetail],
+          lastMessage: msg,
+          updatedAt: msg.createdAt || new Date().toISOString(),
+          unreadCount: state.activeConversationId !== convId ? 1 : 0
+        };
+        state.conversations.unshift(newConv);
       }
     },
     removeMessage: (state, action) => {

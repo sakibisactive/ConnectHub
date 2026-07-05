@@ -105,8 +105,15 @@ function initSocketService(io) {
           } : { userId, username: 'User' }
         };
 
-        // Emit receive_message cleanly to conversation room (Prevents duplicate render bug)
+        // Emit receive_message cleanly to conversation room
         io.to(conversationId).emit('receive_message', payload);
+
+        // Also emit directly to each participant's user room to ensure delivery even if they haven't joined room conversationId yet
+        if (conversation && Array.isArray(conversation.participants)) {
+          conversation.participants.forEach((pId) => {
+            io.to(pId.toString()).emit('receive_message', payload);
+          });
+        }
       } catch (err) {
         console.error('Socket send_message error:', err);
       }
