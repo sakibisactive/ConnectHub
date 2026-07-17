@@ -48,19 +48,6 @@ ConnectHub/
 
 ---
 
-## 🔑 Demo Accounts & Login Credentials
-
-| Username | Email | Password | Role |
-| :--- | :--- | :--- | :--- |
-| `alex_dev` | `alex@connecthub.com` | `password123` | Software Engineer |
-| `sarah_design` | `sarah@connecthub.com` | `password123` | UI/UX Designer |
-| `john_admin` | `john@connecthub.com` | `password123` | System Administrator |
-| `emily_tech` | `emily@connecthub.com` | `password123` | Tech Lead |
-
-- **Master Admin Password**: `connecthub_admin_2026`
-
----
-
 ## ⚡ Quick Start Guide
 
 ### 1. Installation
